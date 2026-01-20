@@ -981,11 +981,11 @@
             
             if (rejectCount === 1) { 
                 showCustomAlert("⚠️ 系統警告", "檢測到高濃度回憶能量，無法取消！");
-                noBtn.innerText = "真的不要嗎？"; noBtn.style.color = "#fff"; 
+                noBtn.innerText = "否？"; noBtn.style.color = "#fff"; 
             } 
             else if (rejectCount === 2) { 
-                showCustomAlert("🚫 嚴重錯誤", "拒絕無效。<br>命運的齒輪已經開始轉動...");
-                noBtn.innerText = "好啦... (Yes)"; noBtn.style.background = "#00f0ff"; noBtn.style.color = "#000"; noBtn.style.boxShadow = "0 0 10px #00f0ff"; 
+                showCustomAlert("🚫 嚴重錯誤", "拒絕無效。<br>空間已經開始轉動...");
+                noBtn.innerText = "是(Yes)"; noBtn.style.background = "#00f0ff"; noBtn.style.color = "#000"; noBtn.style.boxShadow = "0 0 10px #00f0ff"; 
                 noBtn.onclick = function() { confirmStart(true); }; 
             }
         }
@@ -1110,4 +1110,5 @@
     document.head.appendChild(shakeStyle);
 </script>
 </body>
+
 </html>
