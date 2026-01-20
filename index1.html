@@ -782,7 +782,7 @@
             showTauntText(rect.left + 50, rect.top, activeTaunts[Math.floor(Math.random() * activeTaunts.length)], '#00f0ff');
         }, 2000);
 
-        helpTimer = setTimeout(() => { if(bossHP > 0) { document.getElementById('help-text-1').innerText = "Boss 太強了嗎？沒關係"; document.getElementById('help-text-2').innerText = "是否需要 帥哥作者 進行支援？"; helpModal.style.display = 'flex'; } }, 15000);
+        helpTimer = setTimeout(() => { if(bossHP > 0) { document.getElementById('help-text-1').innerText = "Boss 太強了嗎？沒關係"; document.getElementById('help-text-2').innerText = "是否需要 帥哥阿諾 進行支援？"; helpModal.style.display = 'flex'; } }, 15000);
     }
 
     function applyDamage(dmg, x, y) {
@@ -858,7 +858,7 @@
         
         await wait(500); 
         hero.classList.add('attacking'); 
-        showTauntText(bossRect.left - 150, bossRect.top - 100, "帥哥作者：借過！", "#00f0ff");
+        showTauntText(bossRect.left - 150, bossRect.top - 100, "帥哥阿諾：借過！", "#00f0ff");
         
         await wait(800); 
         const slashSound = document.getElementById('se-slash'); 
@@ -1112,5 +1112,6 @@
 </body>
 
 </html>
+
 
 
