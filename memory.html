@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Project</title>
+    <style>
+        /* =========================================
+           基礎樣式
+           ========================================= */
+        body { 
+            margin: 0; background: #050505; overflow: hidden; 
+            font-family: 'Microsoft JhengHei', 'Heiti TC', sans-serif; color: white;
+            user-select: none; cursor: default;
+        }
+
+        #bg-layer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, #020111 0%, #191621 100%);
+            z-index: 0; overflow: hidden;
+        }
+
+        .nebula-cloud {
+            position: absolute; width: 100%; height: 100%;
+            background-image: 
+                radial-gradient(circle at 20% 80%, rgba(62, 28, 168, 0.2), transparent 40%),
+                radial-gradient(circle at 80% 20%, rgba(255, 0, 222, 0.15), transparent 30%),
+                radial-gradient(circle at 50% 50%, rgba(0, 240, 255, 0.1), transparent 50%);
+            filter: blur(20px);
+            animation: nebula-move 20s ease-in-out infinite alternate;
+        }
+        
+        .bg-star {
+            position: absolute; background: #fff; border-radius: 50%; opacity: 0.8;
+            animation: twinkle var(--duration) ease-in-out infinite;
+        }
+        .bg-star.small { width: 1px; height: 1px; opacity: 0.5; }
+        .bg-star.medium { width: 2px; height: 2px; opacity: 0.7; box-shadow: 0 0 2px #fff; }
+        .bg-star.large { width: 3px; height: 3px; box-shadow: 0 0 5px #fff, 0 0 10px #00f0ff; }
+
+        #universe {
+            position: absolute; top: 0; left: 0; width: 100%;
+            transform: translateY(0); 
+            transition: transform 2.0s cubic-bezier(0.25, 1, 0.5, 1);
+            z-index: 10; will-change: transform;
+        }
+        
+        body.warp-mode .bg-star {
+            transition: transform 0.5s, opacity 0.5s; 
+            transform: scaleY(30) scaleX(0.1); opacity: 0.6;
+            box-shadow: 0 0 10px #00f0ff; filter: blur(1px);
+        }
+        body.warp-mode #universe {
+            transition: transform 4.5s cubic-bezier(0.45, 0, 0.1, 1) !important;
+            filter: brightness(1.3);
+        }
+        
+        #line-canvas {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 1; pointer-events: none;
+        }
+
+        /* 核心展示元件 */
+        .star-node {
+            position: absolute; width: 40px; height: 40px; transform: translate(-50%, -50%);
+            z-index: 20; display: flex; justify-content: center; align-items: center;
+            transition: all 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .star-core {
+            position: absolute; width: 12px; height: 12px; background: #fff; border-radius: 50%;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.8), 0 0 20px rgba(0, 240, 255, 0.6); z-index: 2;
+            animation: starPulse 3s infinite ease-in-out;
+        }
+        .star-ring {
+            position: absolute; width: 30px; height: 30px; border-radius: 50%;
+            border: 1px solid rgba(255, 255, 255, 0.15); border-top: 1px solid rgba(0, 240, 255, 0.8); border-bottom: 1px solid rgba(0, 240, 255, 0.3);
+            box-shadow: 0 0 5px rgba(0, 240, 255, 0.2); z-index: 1; animation: starSpin 6s linear infinite;
+        }
+        .star-node.medium { z-index: 50; transform: translate(-50%, -50%) scale(2.5); }
+        .star-node.medium .star-core { background: #ffd700; box-shadow: 0 0 15px #ffd700, 0 0 30px #ffaa00; }
+        .star-node.medium .star-ring { border-top-color: #ffd700; border-bottom-color: rgba(255, 215, 0, 0.5); animation: starSpin 2s linear infinite; width: 36px; height: 36px; }
+        .star-node.hidden { opacity: 0; transform: translate(-50%, -50%) scale(0.5); }
+
+        /* 火箭本體 */
+        #rocket-ship {
+            position: absolute; top: 0; left: 0; font-size: 3rem; 
+            z-index: 100; pointer-events: none; opacity: 0;
+            filter: drop-shadow(0 0 15px #00f0ff);
+            transition: opacity 0.3s;
+            will-change: transform, left, top;
+        }
+        #rocket-ship::after {
+            content: ''; position: absolute; bottom: -10px; left: 50%; transform: translateX(-50%);
+            width: 10px; height: 30px; background: linear-gradient(to bottom, #00f0ff, transparent);
+            filter: blur(4px); opacity: 0.8; z-index: -1;
+            animation: enginePulse 0.1s infinite alternate;
+        }
+        @keyframes enginePulse { from { height: 20px; opacity: 0.6; } to { height: 40px; opacity: 1; } }
+
+        /* 照片展示器 */
+        #photo-viewer {
+            position: fixed; top: 0; left: 0; 
+            width: 0px; height: 0px; 
+            border-radius: 50%; 
+            background-color: #fff; background-size: cover; background-position: center;
+            transition: 
+                width 1.2s cubic-bezier(0.19, 1, 0.22, 1), 
+                height 1.2s cubic-bezier(0.19, 1, 0.22, 1), 
+                top 1.2s cubic-bezier(0.19, 1, 0.22, 1), 
+                left 1.2s cubic-bezier(0.19, 1, 0.22, 1), 
+                border-radius 1.0s ease, 
+                opacity 0.8s ease,
+                transform 1.0s ease; 
+            transform-origin: center center;
+            z-index: 900; opacity: 0; pointer-events: none; overflow: hidden;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.8);
+        }
+        
+        #photo-viewer.center-stage {
+            opacity: 1; top: 50% !important; left: 50% !important; 
+            transform: translate(-50%, -50%) scale(1) !important;
+            width: 65vh !important; height: 65vh !important; max-width: 800px; max-height: 800px;
+            border-radius: 24px; border: none;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.8), 0 0 0 8px rgba(255, 255, 255, 0.1), inset 0 0 0 2px rgba(255, 255, 255, 0.5), 0 0 40px rgba(0, 240, 255, 0.3);
+        }
+        
+        #photo-viewer.center-stage::after {
+            content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+            background: linear-gradient(to bottom right, transparent 40%, rgba(255, 255, 255, 0.5) 50%, transparent 60%);
+            transform: rotate(45deg); animation: holoScan 3s linear infinite; pointer-events: none; mix-blend-mode: overlay;
+        }
+        
+        #photo-viewer.move-left {
+            left: 28% !important; top: 50% !important; width: 55vh !important; height: 55vh !important; 
+            transform: translate(-50%, -50%) perspective(1000px) rotateY(15deg) !important;
+            box-shadow: -15px 15px 40px rgba(0, 0, 0, 0.6), 0 0 0 6px rgba(255, 255, 255, 0.15), inset 0 0 0 2px rgba(255, 255, 255, 0.6);
+        }
+        #photo-viewer.move-left::after { opacity: 0.2; }
+
+        #message-card {
+            position: fixed; top: 50%; right: 10%; transform: translateY(-50%) translateX(50px);
+            width: 350px; max-width: 80vw; padding: 30px;
+            background: rgba(16, 24, 35, 0.75); backdrop-filter: blur(15px);
+            border-radius: 12px; border: 1px solid rgba(255, 255, 255, 0.1); border-left: 4px solid #00f0ff;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); color: #eee;
+            font-family: 'DFKai-SB', 'BiauKai', '標楷體', 'Microsoft JhengHei', sans-serif;
+            font-weight: 500; letter-spacing: 2px; font-size: 1.3rem; line-height: 1.8;
+            opacity: 0; pointer-events: none; transition: all 1.2s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 850;
+        }
+        #message-card::before {
+            content: 'MEMORY_LOG'; position: absolute; top: -10px; right: 20px;
+            font-size: 0.7rem; font-weight: bold; color: #00f0ff; background: #000;
+            padding: 2px 8px; border: 1px solid rgba(0, 240, 255, 0.3); border-radius: 4px; letter-spacing: 2px;
+        }
+        #message-card.show { opacity: 1; pointer-events: auto; transform: translateY(-50%) translateX(0); }
+        .cursor { display: inline-block; width: 8px; height: 18px; background-color: #00f0ff; margin-left: 5px; vertical-align: middle; animation: cursorBlink 0.8s infinite; }
+
+        #control-panel {
+            position: fixed; bottom: 30px; width: 100%; display: flex; justify-content: center; gap: 20px;
+            z-index: 1000; opacity: 0; pointer-events: none; transition: opacity 1.5s;
+        }
+        #control-panel.show { opacity: 1; pointer-events: auto; }
+        .nav-btn {
+            padding: 12px 40px; background: rgba(0, 0, 0, 0.5); border: 1px solid #fff; color: #fff;
+            font-size: 1.2rem; border-radius: 30px; cursor: pointer; transition: 0.3s;
+        }
+        .nav-btn:hover { background: #fff; color: #000; transform: scale(1.05); }
+        #progress-bar { position: fixed; top: 0; left: 0; height: 3px; width: 0%; background: linear-gradient(90deg, #00f0ff, #ff00de); z-index: 1000; transition: width 1.5s; }
+
+        #travel-indicator {
+            position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%) translateY(30px);
+            display: flex; align-items: center; justify-content: center; gap: 15px; padding: 12px 35px;
+            background: linear-gradient(90deg, rgba(10, 15, 25, 0.85) 0%, rgba(20, 30, 45, 0.95) 100%);
+            backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 240, 255, 0.15); border-top: 1px solid rgba(0, 240, 255, 0.4); border-bottom: 1px solid rgba(0, 240, 255, 0.1);
+            border-radius: 4px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 240, 255, 0.1), inset 0 0 20px rgba(0, 0, 0, 0.5);
+            opacity: 0; pointer-events: none; transition: all 0.6s cubic-bezier(0.2, 0.8, 0.2, 1); z-index: 950;
+        }
+        #travel-indicator::before, #travel-indicator::after {
+            content: ''; position: absolute; top: 50%; width: 4px; height: 70%;
+            background: #00f0ff; opacity: 0.6; transform: translateY(-50%); box-shadow: 0 0 8px #00f0ff;
+        }
+        #travel-indicator::before { left: 0; border-radius: 0 2px 2px 0; }
+        #travel-indicator::after { right: 0; border-radius: 2px 0 0 2px; }
+        #travel-indicator.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+        #travel-indicator .text-content { display: flex; flex-direction: column; align-items: flex-start; }
+        #travel-indicator .title { color: #00f0ff; font-size: 0.75rem; letter-spacing: 2px; font-weight: 700; text-transform: uppercase; margin-bottom: 2px; text-shadow: 0 0 5px rgba(0, 240, 255, 0.5); }
+        #travel-indicator .text { color: #fff; font-family: 'Microsoft JhengHei', sans-serif; font-size: 1.05rem; letter-spacing: 1.5px; font-weight: 400; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
+        #travel-indicator .icon { font-size: 1.8rem; filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.6)); animation: rocket-shake 0.1s infinite alternate; }
+
+        @keyframes rocket-shake { 0% { transform: translateY(0); } 100% { transform: translateY(-1px) translateX(1px); } }
+        @keyframes nebula-move { 0% { transform: scale(1); opacity: 0.8; } 100% { transform: scale(1.1); opacity: 1; } }
+        @keyframes twinkle { 0%, 100% { opacity: 0.3; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.2); } }
+        @keyframes starPulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(0.9); opacity: 0.8; } }
+        @keyframes starSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes holoScan { 0% { transform: rotate(45deg) translateY(-100%); opacity: 0; } 50% { opacity: 1; } 100% { transform: rotate(45deg) translateY(100%); opacity: 0; } }
+        @keyframes cursorBlink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+        @keyframes textPulse { from { opacity: 0.6; } to { opacity: 1; text-shadow: 0 0 40px #ffd700; } }
+        @keyframes glitch-anim {
+            0% { transform: translate(-50%, -50%) scale(1) skew(0deg); box-shadow: 0 0 0 rgba(0,0,0,0); filter: hue-rotate(0deg); }
+            20% { transform: translate(-55%, -50%) scale(1.02) skew(10deg); box-shadow: -5px 0 0 rgba(255,0,0,0.5), 5px 0 0 rgba(0,255,255,0.5); filter: hue-rotate(90deg) contrast(1.5); }
+            40% { transform: translate(-45%, -50%) scale(0.98) skew(-5deg); box-shadow: 5px 0 0 rgba(255,0,0,0.5), -5px 0 0 rgba(0,255,255,0.5); filter: hue-rotate(-90deg); }
+            60% { transform: translate(-50%, -52%) scale(1.05) skew(5deg); filter: invert(0.2); }
+            100% { transform: translate(-50%, -50%) scale(1) skew(0deg); filter: none; }
+        }
+        .glitch-effect { animation: glitch-anim 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both; }
+        @keyframes float-breath { 0%, 100% { transform: translate(-50%, -50%) translateY(0px); } 50% { transform: translate(-50%, -50%) translateY(-10px); } }
+        .floating-effect { animation: float-breath 4s ease-in-out infinite; }
+        #status-message {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            font-size: 3rem; font-weight: bold; color: #fff; text-shadow: 0 0 20px #ffd700;
+            letter-spacing: 5px; display: none; z-index: 20; white-space: nowrap;
+        }
+        .status-pulse { animation: textPulse 1.5s infinite alternate; }
+        #flash-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #fff; z-index: 10000; opacity: 1; pointer-events: none; transition: opacity 2.5s; }
+    </style>
+</head>
+<body>
+
+    <audio id="bgm-galaxy" loop><source src="galaxy.mp3" type="audio/mpeg"></audio>
+    <audio id="bgm-typing" loop><source src="typing.mp3" type="audio/mpeg"></audio>
+    <audio id="se-warp"><source src="warp.mp3" type="audio/mpeg"></audio>
+    <audio id="se-click"><source src="click.mp3" type="audio/mpeg"></audio>
+    <audio id="se-rocket"><source src="rocket_launch.mp3" type="audio/mpeg"></audio>
+
+    <div id="flash-overlay"></div>
+    <div id="progress-bar"></div>
+
+    <div id="travel-indicator">
+        <span class="icon">🚀</span> 
+        <div class="text-content">
+            <span class="title">系統狀態</span>
+            <span class="text" id="indicator-text">準備啟航...</span>
+        </div>
+    </div>
+
+    <div id="bg-layer"><div class="nebula-cloud"></div></div>
+    <div id="rocket-ship">🚀</div>
+    <div id="universe"><canvas id="line-canvas"></canvas><div id="stars-container"></div></div>
+    <div id="photo-viewer"></div>
+    <div id="message-card"><div id="typewriter-text"></div></div>
+    <div id="control-panel"><button id="next-btn" class="nav-btn" onclick="nextStep()"> 👇 下一張 </button></div>
+    <div id="status-message"></div>
+
+<script>
+const photoData = [
+    { src: "photo1.png", text: "這張大頭特寫我一直留著，因為這表情真的跟我當時的操作一樣，充滿了純情的迷茫。😶‍🌫️" },
+    { src: "photo2.png", text: "這位蜂醫大兵竟然露出這種「看透世俗」的眼神。👀 妳是在思考戰術，還是在想等下晚餐要吃什麼？🍔" },
+    { src: "photo8.png", text: "我嚴重懷疑這台卡車有自己的想法！它就像妳的駕駛技術一樣，總是能帶我們去到意想不到的地方。🚛" },
+    { src: "photo5.png", text: "我發誓！手裡拿著打火機真的只是怕礦坑太冷，想幫妳「取暖」！🔥 雖然妳變成了一團火球...但這就是展現我對你的「熱情」啊！" },
+    { src: "photo4.png", text: "妳在前面奮力划船，我在後面吃巧克力棒。雖然看起來我是薪水小偷，但是你划船我要站穩也是不容易的，心理壓力很大的好嗎！🍫" },
+    { src: "photo10.png", text: "雖然說我贏了，但我得承認，這場我能贏，完全是因為我一直在偷搬你的煤礦。這張照片本來是想拍下我假裝要幫你加煤的樣子，結果煤還沒丟進去就贏了。😂" },
+    { src: "photo9.png", text: "那天玩摸金，我發現了這個石頭位子，然後拉著你一起過來蹲。明明沒什麼戰鬥，但看著你過來跟我一起露出頭觀察敵情的樣子，真的越想越好笑。" },
+    { src: "photo19.png", text: "宇宙這麼大，能湊在一起探索同一個星系也是種緣分。謝謝你這段時間在各個遊戲裡的陪伴，無論是去探險還是去搞事，有你在確實熱鬧很多。期待下一款新坑！🎮" }
+];
+
+    const universe = document.getElementById('universe');
+    const container = document.getElementById('stars-container');
+    const canvas = document.getElementById('line-canvas');
+    const rocket = document.getElementById('rocket-ship');
+    const ctx = canvas.getContext('2d');
+    const progressBar = document.getElementById('progress-bar');
+    const nextBtn = document.getElementById('next-btn');
+    const photoViewer = document.getElementById('photo-viewer');
+    const messageCard = document.getElementById('message-card');
+    const typeText = document.getElementById('typewriter-text');
+    const controlPanel = document.getElementById('control-panel');
+    const indicatorText = document.getElementById('indicator-text');
+    const STAR_GAP = 800; 
+    const SCREEN_H = window.innerHeight;
+    let starPositions = [];
+    let currentIndex = -1;
+    let isAnimating = false;
+
+    window.onload = function() {
+        const flash = document.getElementById('flash-overlay');
+        setTimeout(() => { flash.style.opacity = 0; }, 100);
+        setTimeout(() => { flash.style.display = 'none'; }, 2600);
+        
+        initGalaxy();
+        initBackgroundStars();
+        initButtonSound();
+
+        setTimeout(() => {
+            startOpeningSequence();
+        }, 2000);
+    };
+
+    function switchMusic(playId) {
+        const audio = document.getElementById('bgm-galaxy');
+        if(playId === 'bgm-galaxy' && audio) {
+            audio.volume = 0.5;
+            audio.play().catch(e => console.log("等待互動播放音樂"));
+        }
+    }
+
+    function initButtonSound() {
+        const clickSound = document.getElementById('se-click');
+        if (!clickSound) return;
+        // ★ 按鈕音效調降至 30% (0.3)
+        clickSound.volume = 0.3;
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', () => {
+                clickSound.currentTime = 0; clickSound.play().catch(() => {});
+            });
+        });
+    }
+
+    function initGalaxy() {
+        const totalHeight = photoData.length * STAR_GAP + SCREEN_H; universe.style.height = totalHeight + 'px'; canvas.width = window.innerWidth; canvas.height = totalHeight;
+        photoData.forEach((data, i) => {
+            const x = window.innerWidth / 2 + Math.sin(i * 1.0) * (window.innerWidth * 0.3); const y = window.innerHeight * 0.5 + i * STAR_GAP;
+            starPositions.push({ x, y, data, id: i });
+            const el = document.createElement('div'); el.className = 'star-node'; el.style.left = x + 'px'; el.style.top = y + 'px'; el.id = `star-${i}`;
+            const core = document.createElement('div'); core.className = 'star-core'; el.appendChild(core);
+            const ring = document.createElement('div'); ring.className = 'star-ring'; el.appendChild(ring);
+            container.appendChild(el);
+        });
+        drawStaticPath(); updateCamera(-1);
+    }
+
+    async function startOpeningSequence() {
+        if(isAnimating) return;
+        isAnimating = true;
+
+        const startPos = { x: window.innerWidth / 2, y: -200 };
+        const endPos = starPositions[0]; 
+
+        const travelIndicator = document.getElementById('travel-indicator');
+        const rocketSound = document.getElementById('se-rocket');
+
+        document.body.classList.add('warp-mode');
+        rocket.style.opacity = 1;
+
+        if(indicatorText) indicatorText.innerText = "即將抵達回憶星球...";
+        if(travelIndicator) travelIndicator.classList.add('show');
+        
+        if(rocketSound) {
+            rocketSound.currentTime = 0;
+            // 開場火箭音量 80% (0.8)
+            rocketSound.volume = 0.8; 
+            rocketSound.play().catch(e => console.log("音效播放失敗", e));
+        }
+
+        await new Promise(resolve => {
+            let start = null; const duration = 4000; 
+            function step(timestamp) {
+                if (!start) start = timestamp; let p = (timestamp - start) / duration;
+                let easeP = -(Math.cos(Math.PI * p) - 1) / 2;
+                if (p > 1) { p = 1; easeP = 1; }
+                
+                animateFlight(startPos, endPos, easeP);
+
+                // 基於 0.8 的音量進行漸弱
+                if (rocketSound && p > 0.7) {
+                    let maxVol = 0.8;
+                    let newVolume = maxVol * ((1 - p) / 0.3);
+                    if (newVolume < 0) newVolume = 0;
+                    rocketSound.volume = newVolume;
+                }
+
+                if (p < 1) requestAnimationFrame(step); else resolve();
+            }
+            requestAnimationFrame(step);
+        });
+
+        if(travelIndicator) travelIndicator.classList.remove('show');
+        if(rocketSound) {
+            rocketSound.pause();
+            rocketSound.currentTime = 0;
+        }
+
+        rocket.style.opacity = 0;
+        document.body.classList.remove('warp-mode');
+        
+        switchMusic('bgm-galaxy');
+        
+        await revealPhoto(0);
+
+        currentIndex = 0;
+        progressBar.style.width = ((currentIndex + 1) / photoData.length * 100) + "%"; 
+        isAnimating = false;
+    }
+
+    async function revealPhoto(index) {
+        const star = document.getElementById(`star-${index}`); 
+        const data = photoData[index];
+
+        if(star) {
+            star.classList.add('hidden'); const rect = star.getBoundingClientRect();
+            
+            photoViewer.style.transition = 'none'; 
+            photoViewer.style.opacity = 1;
+            photoViewer.style.transform = 'translate(-50%, -50%) scale(0)'; 
+            photoViewer.style.top = rect.top + 'px'; photoViewer.style.left = rect.left + 'px'; 
+            photoViewer.style.width = '0px'; photoViewer.style.height = '0px';
+            photoViewer.style.filter = "none";
+            
+            if (data.src) photoViewer.style.backgroundImage = `url('${data.src}')`;
+            void photoViewer.offsetWidth;
+            
+            photoViewer.style.transition = 'width 1.2s cubic-bezier(0.19, 1, 0.22, 1), height 1.2s cubic-bezier(0.19, 1, 0.22, 1), top 1.2s cubic-bezier(0.19, 1, 0.22, 1), left 1.2s cubic-bezier(0.19, 1, 0.22, 1), border-radius 1.0s ease, transform 1.0s ease';
+            photoViewer.style.transform = 'translate(-50%, -50%) scale(1)'; 
+            photoViewer.classList.add('center-stage');
+            
+            setTimeout(() => { 
+                photoViewer.classList.add('glitch-effect'); 
+                setTimeout(() => { 
+                    photoViewer.classList.remove('glitch-effect'); 
+                    if(!photoViewer.classList.contains('move-left')) photoViewer.classList.add('floating-effect'); 
+                }, 400); 
+            }, 1000); 
+        }
+
+        await wait(1800); 
+        photoViewer.classList.remove('floating-effect'); photoViewer.classList.add('move-left');
+        await wait(800); 
+        messageCard.classList.add('show'); 
+        
+        await typeWriterEffect(data.text);
+        
+        const controlPanel = document.getElementById('control-panel');
+        if(controlPanel) controlPanel.classList.add('show');
+    }
+
+    async function nextStep() {
+        if(isAnimating) return;
+        isAnimating = true;
+
+        const controlPanel = document.getElementById('control-panel');
+        if(controlPanel) controlPanel.classList.remove('show');
+        await wait(500); 
+
+        if(currentIndex >= 0) {
+            messageCard.classList.remove('show');
+            
+            const oldStar = document.getElementById(`star-${currentIndex}`);
+            if(oldStar) {
+                const rect = oldStar.getBoundingClientRect();
+                photoViewer.classList.remove('move-left', 'center-stage', 'floating-effect', 'glitch-effect');
+                photoViewer.style.transition = 'all 0.8s cubic-bezier(0.55, 0.085, 0.68, 0.53)'; 
+                const targetX = rect.left + rect.width / 2;
+                const targetY = rect.top + rect.height / 2;
+                photoViewer.style.left = targetX + 'px';
+                photoViewer.style.top = targetY + 'px';
+                photoViewer.style.width = '0px';
+                photoViewer.style.height = '0px';
+                photoViewer.style.opacity = 0; 
+                photoViewer.style.transform = 'translate(-50%, -50%) rotate(180deg)'; 
+            }
+            
+            await wait(1000); 
+            
+            typeText.innerHTML = ""; 
+            if(oldStar) { 
+                oldStar.classList.remove('hidden'); 
+                oldStar.style.transform = "scale(1.5)"; 
+                setTimeout(() => oldStar.style.transform = "scale(1)", 300); 
+            }
+        }
+
+        const nextIndex = currentIndex + 1;
+        if(nextIndex >= photoData.length) {
+            if(nextBtn) { nextBtn.innerText = "⚠️ 能量超載..."; nextBtn.style.background = "#ff3333"; }
+            const statusMsg = document.getElementById('status-message'); statusMsg.innerText = "⚠️ 空間發生異常...正在傳送中"; statusMsg.style.display = "block"; statusMsg.classList.add('status-pulse');
+            
+            // 離場時讓背景音樂慢慢變小 (Fade Out)
+            const bgm = document.getElementById('bgm-galaxy');
+            if(bgm) {
+                let vol = bgm.volume; 
+                const fadeInterval = setInterval(() => {
+                    vol -= 0.05; // 每次減少 0.05
+                    if(vol <= 0) {
+                        vol = 0;
+                        bgm.pause();
+                        clearInterval(fadeInterval);
+                    }
+                    bgm.volume = vol;
+                }, 200); // 每 200毫秒降一次，總共約 2秒
+            }
+
+            document.getElementById('flash-overlay').style.display = 'block';
+            setTimeout(() => { document.getElementById('flash-overlay').style.opacity = 1; }, 100);
+            setTimeout(() => { window.location.href = "test2.html"; }, 2500); isAnimating = false; return;
+        }
+
+        document.body.classList.add('warp-mode');
+        updateCamera(nextIndex);
+
+        const travelIndicator = document.getElementById('travel-indicator');
+        const rocketSound = document.getElementById('se-rocket');
+
+        if(nextIndex > 0) {
+            const prevPos = starPositions[nextIndex-1]; 
+            const nextPos = starPositions[nextIndex];
+            rocket.style.opacity = 1;
+
+            if(indicatorText) indicatorText.innerText = "正在前往下一個回憶星球...";
+            if(travelIndicator) travelIndicator.classList.add('show');
+
+            if(rocketSound) {
+                rocketSound.currentTime = 0;
+                // 過場時火箭音量 25% (0.25)
+                rocketSound.volume = 0.25; 
+                rocketSound.play().catch(e => console.log("音效播放失敗", e));
+            }
+
+            await new Promise(resolve => {
+                let start = null; const duration = 4500; 
+                function step(timestamp) {
+                    if (!start) start = timestamp; 
+                    let p = (timestamp - start) / duration;
+                    let easeP = -(Math.cos(Math.PI * p) - 1) / 2;
+                    if (p > 1) { p = 1; easeP = 1; }
+                    
+                    animateFlight(prevPos, nextPos, easeP);
+
+                    // 基於 0.25 的音量進行漸弱
+                    if (rocketSound && p > 0.7) {
+                        let maxVol = 0.25;
+                        let newVolume = maxVol * ((1 - p) / 0.3);
+                        if (newVolume < 0) newVolume = 0;
+                        rocketSound.volume = newVolume;
+                    }
+
+                    if (p < 1) requestAnimationFrame(step); else resolve();
+                }
+                requestAnimationFrame(step);
+            });
+            
+            rocket.style.opacity = 0;
+            
+            if(travelIndicator) travelIndicator.classList.remove('show');
+            if(rocketSound) {
+                rocketSound.pause();
+                rocketSound.currentTime = 0; 
+            }
+
+        } else { await wait(1000); }
+
+        document.body.classList.remove('warp-mode');
+        
+        await revealPhoto(nextIndex);
+        
+        progressBar.style.width = ((nextIndex + 1) / photoData.length * 100) + "%"; currentIndex = nextIndex; isAnimating = false;
+    }
+
+    async function typeWriterEffect(text) {
+        typeText.innerHTML = '<span class="cursor"></span>'; 
+        const typingSound = document.getElementById('bgm-typing');
+        // 打字音量 1.0 (最大)
+        if (typingSound) { try { typingSound.currentTime = 0; typingSound.volume = 1.0; await typingSound.play(); } catch (e) {} }
+        for (let i = 0; i < text.length; i++) {
+            const char = text.charAt(i); const cursor = typeText.querySelector('.cursor'); const span = document.createElement('span');
+            span.innerText = char; typeText.insertBefore(span, cursor);
+            
+            await wait(Math.random() * 100 + 150); 
+        }
+        if (typingSound) { typingSound.pause(); typingSound.currentTime = 0; }
+    }
+
+    function updateCamera(targetIndex) {
+        if(targetIndex < 0) targetIndex = 0; const targetY = starPositions[targetIndex].y; const offset = targetY - (window.innerHeight / 2);
+        universe.style.transform = `translateY(-${offset}px)`;
+    }
+
+    function drawStaticPath() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height); ctx.beginPath(); ctx.strokeStyle = "rgba(255, 255, 255, 0.1)"; ctx.lineWidth = 1; ctx.setLineDash([5, 15]); 
+        if(starPositions.length > 0) {
+            ctx.moveTo(starPositions[0].x, starPositions[0].y);
+            for(let i=1; i<starPositions.length; i++) { const prev = starPositions[i-1]; const curr = starPositions[i]; ctx.bezierCurveTo(prev.x, (prev.y+curr.y)/2, curr.x, (prev.y+curr.y)/2, curr.x, curr.y); }
+        }
+        ctx.stroke();
+    }
+
+    function getBezierPoint(t, p0, p1, p2, p3) {
+        const cx = 3 * (p1.x - p0.x);
+        const bx = 3 * (p2.x - p1.x) - cx;
+        const ax = p3.x - p0.x - cx - bx;
+        const cy = 3 * (p1.y - p0.y);
+        const by = 3 * (p2.y - p1.y) - cy;
+        const ay = p3.y - p0.y - cy - by;
+        
+        const x = (ax * Math.pow(t, 3)) + (bx * Math.pow(t, 2)) + (cx * t) + p0.x;
+        const y = (ay * Math.pow(t, 3)) + (by * Math.pow(t, 2)) + (cy * t) + p0.y;
+        return { x, y };
+    }
+
+    function animateFlight(p1, p2, progress) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height); 
+        drawStaticPath(); 
+        
+        const cp1 = { x: p1.x, y: (p1.y + p2.y) / 2 };
+        const cp2 = { x: p2.x, y: (p1.y + p2.y) / 2 };
+        const currentPos = getBezierPoint(progress, p1, cp1, cp2, p2);
+        
+        const uniStyle = window.getComputedStyle(universe);
+        const matrix = new DOMMatrix(uniStyle.transform);
+        const offsetY = matrix.m42;
+        
+        const nextT = Math.min(progress + 0.01, 1);
+        const nextPos = getBezierPoint(nextT, p1, cp1, cp2, p2);
+        const dx = nextPos.x - currentPos.x;
+        const dy = nextPos.y - currentPos.y;
+        const rotation = Math.atan2(dy, dx) * (180 / Math.PI) + 45; 
+        
+        rocket.style.left = (currentPos.x - 20) + 'px'; 
+        rocket.style.top = (currentPos.y + offsetY - 20) + 'px'; 
+        rocket.style.transform = `rotate(${rotation}deg)`;
+
+        const gradient = ctx.createLinearGradient(p1.x, p1.y, currentPos.x, currentPos.y);
+        gradient.addColorStop(0, "rgba(0, 240, 255, 0)"); 
+        gradient.addColorStop(1, "rgba(0, 240, 255, 0.5)");
+        
+        ctx.beginPath(); 
+        ctx.arc(currentPos.x, currentPos.y, 4, 0, Math.PI * 2); 
+        ctx.fillStyle = "#00f0ff"; 
+        ctx.shadowBlur = 10; ctx.shadowColor = "#00f0ff"; 
+        ctx.fill(); ctx.shadowBlur = 0;
+    }
+
+    function initBackgroundStars() {
+        const bgLayer = document.getElementById('bg-layer'); const starCount = 100; 
+        for (let i = 0; i < starCount; i++) {
+            const star = document.createElement('div'); const sizeRandom = Math.random();
+            star.classList.add('bg-star', sizeRandom > 0.9 ? 'large' : sizeRandom > 0.6 ? 'medium' : 'small');
+            star.style.left = Math.random() * 100 + '%'; star.style.top = Math.random() * 100 + '%';
+            star.style.setProperty('--duration', (2 + Math.random() * 3) + 's'); star.style.animationDelay = (Math.random() * 5) + 's';
+            bgLayer.appendChild(star);
+        }
+    }
+    
+    function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+</script>
+</body>
+</html>

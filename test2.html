@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Project</title>
+    <style>
+        /* 字體定義 */
+        @font-face {
+            font-family: "HanYiShangWei";
+            src: url("汉仪尚巍手书W.ttf") format("truetype");
+        }
+        @font-face {
+            font-family: "YuWei"; 
+            src: url("禹卫书法行书简体.ttf") format("truetype");
+        }
+        
+        :root {
+            --color-red: #ff3333;
+            --color-blue: #3399ff;
+            --color-green: #33ff33;
+            --color-yellow: #ffff33;
+            --bg-dark: #0a0a0a;
+            --panel-bg: #1a1a1a;
+        }
+        
+        body {
+            margin: 0; padding: 0;
+            background-color: var(--bg-dark);
+            color: white;
+            /* 預設字體改用書法體，質感更好 */
+            font-family: "HanYiShangWei", "YuWei", 'Microsoft JhengHei', monospace;
+            overflow: hidden;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh;
+            user-select: none; touch-action: none;
+        }
+
+        /* --- ★★★ 新增：遊戲標題 ★★★ --- */
+        #game-title {
+            position: absolute;
+            top: 5%;
+            width: 100%;
+            text-align: center;
+            font-size: 4rem;
+            color: #fff;
+            letter-spacing: 10px;
+            z-index: 20;
+            pointer-events: none;
+            /* 霓虹發光特效 */
+            text-shadow: 
+                0 0 10px rgba(0, 240, 255, 0.8),
+                0 0 20px rgba(0, 240, 255, 0.6),
+                0 0 40px rgba(0, 240, 255, 0.4);
+            animation: textPulse 3s infinite alternate;
+        }
+
+        @keyframes textPulse {
+            0% { text-shadow: 0 0 10px rgba(0, 240, 255, 0.8), 0 0 20px rgba(0, 240, 255, 0.6); opacity: 0.9; }
+            100% { text-shadow: 0 0 20px rgba(0, 240, 255, 1), 0 0 40px rgba(0, 240, 255, 0.8), 0 0 60px rgba(0, 240, 255, 0.6); opacity: 1; }
+        }
+
+        /* --- 警告層 --- */
+        #warning-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(20, 0, 0, 0.95); z-index: 100;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            cursor: pointer; text-align: center;
+        }
+        .warning-text {
+            font-size: 3rem; color: var(--color-red); font-weight: 900;
+            text-shadow: 3px 0 #fff, -3px 0 #0ff; animation: glitch 0.2s infinite; letter-spacing: 5px;
+        }
+        .warning-sub { 
+            margin-top: 20px; font-size: 1.2rem; color: #aaa; animation: blink 0.5s infinite; 
+        }
+
+        /* --- 主配電盤容器 --- */
+        #circuit-board {
+            position: relative; width: 90%; max-width: 800px; height: 500px;
+            background: var(--panel-bg);
+            /* 增加金屬網格質感 */
+            background-image: 
+                linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), 
+                linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 20px 20px;
+            border: 2px solid #444; 
+            border-radius: 15px;
+            /* 增加外發光與內陰影 */
+            box-shadow: 0 0 20px rgba(0,0,0,0.8), inset 0 0 50px rgba(0,0,0,0.9);
+            display: flex; justify-content: space-between;
+            padding: 40px; box-sizing: border-box; opacity: 0.2; transition: opacity 0.5s;
+            z-index: 10;
+            transform-origin: center center;
+            /* 稍微往下移一點，避開標題 */
+            margin-top: 60px; 
+        }
+        .pcb-traces {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0.15; pointer-events: none;
+            background: repeating-linear-gradient(45deg, #333 0, #333 2px, transparent 2px, transparent 10px);
+        }
+        #wire-svg-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+        
+        .column { display: flex; flex-direction: column; justify-content: space-around; height: 100%; z-index: 10; }
+        .col-label { text-align: center; color: #aaa; font-size: 1.5rem; margin-bottom: 10px; letter-spacing: 3px; text-shadow: 0 0 5px rgba(255,255,255,0.2); }
+
+        /* --- ★★★ 圓圈 (Node) 質感優化 ★★★ --- */
+        .node {
+            width: 70px; height: 70px; /* 稍微加大 */
+            border-radius: 50%; 
+            
+            /* 金屬質感底色 */
+            background: radial-gradient(145deg, #333, #111);
+            
+            /* 邊框與陰影設計 - 模擬凹槽插孔 */
+            border: 3px solid #555; 
+            box-shadow: 
+                5px 5px 10px #0b0b0b, 
+                -5px -5px 10px #2a2a2a,
+                inset 0 0 10px rgba(0,0,0,0.8); /* 內陰影 */
+                
+            display: flex; justify-content: center; align-items: center; position: relative;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+            font-size: 1.5rem; font-weight: bold; color: #888;
+            text-shadow: 0 1px 2px black;
+        }
+        
+        .start-node { cursor: grab; }
+        .start-node:active { cursor: grabbing; transform: scale(0.95); }
+        
+        /* 連接點裝飾 (右側的金屬接頭) */
+        .start-node::after { 
+            content: ''; position: absolute; right: -12px; width: 12px; height: 8px; 
+            background: #444; border-radius: 0 4px 4px 0;
+            box-shadow: inset 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        
+        .end-node { border-style: solid; /* 改為實線，靠顏色區分 */ }
+
+        /* --- 顏色主題覆蓋 (讓圓圈發光) --- */
+        .red { --node-color: var(--color-red); } 
+        .blue { --node-color: var(--color-blue); }
+        .green { --node-color: var(--color-green); } 
+        .yellow { --node-color: var(--color-yellow); }
+
+        /* 當有顏色類別時的樣式 */
+        .node.red { border-color: #500; color: #a55; }
+        .node.blue { border-color: #005; color: #55a; }
+        .node.green { border-color: #050; color: #5a5; }
+        .node.yellow { border-color: #550; color: #aa5; }
+
+        /* 拖曳時的高亮樣式 (Hover / Active) */
+        .node.start-node:active,
+        .node.end-node.hover-correct {
+            border-color: var(--node-color);
+            background: radial-gradient(145deg, #222, #000);
+            box-shadow: 
+                0 0 15px var(--node-color), 
+                inset 0 0 20px var(--node-color);
+            color: #fff;
+            text-shadow: 0 0 5px var(--node-color);
+        }
+        
+        .end-node.hover-wrong { 
+            animation: shake 0.3s; 
+            border-color: #ff0000; 
+            box-shadow: 0 0 10px #ff0000;
+        }
+
+        /* 連接成功後的樣式 (亮起) */
+        .node.connected { 
+            background: var(--node-color); 
+            box-shadow: 
+                0 0 20px var(--node-color), 
+                0 0 40px var(--node-color),
+                inset 0 0 10px rgba(255,255,255,0.5); /* 增加玻璃質感 */
+            border-color: #fff; 
+            color: #000; 
+            text-shadow: none;
+            pointer-events: none; 
+            transform: scale(1.1);
+        }
+        
+        .svg-wire-connected { filter: drop-shadow(0 0 8px currentColor); }
+
+        /* --- 轉場特效層 --- */
+        #white-flash {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; opacity: 0; pointer-events: none; z-index: 999;
+            transition: opacity 2s ease-out; 
+        }
+
+        #transition-canvas {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 500; display: none; background: #020205; 
+        }
+
+        /* 火箭容器 */
+        #rocket-container {
+            position: fixed; left: -200px; top: 110%; width: 150px; height: 150px;
+            z-index: 600; display: none; transform: scale(0.8);
+            transition: all 10s ease-in; 
+        }
+        
+        .rocket-emoji {
+            font-size: 8rem; filter: drop-shadow(0 0 20px #ffaa00);
+            position: absolute; top: 0; left: 0; z-index: 2;
+            animation: rocketShake 0.1s infinite alternate; 
+        }
+        
+        .rocket-fire {
+            width: 25px; height: 70px;
+            background: linear-gradient(to bottom, #ffff00, #ff0000, transparent);
+            border-radius: 50%; position: absolute; top: 65%; left: 15%; 
+            transform: rotate(45deg); animation: fireFlicker 0.1s infinite alternate;
+            box-shadow: 0 0 30px #ff4500; z-index: 1; 
+        }
+
+        /* 系統傳送文字 */
+        #system-msg {
+            position: fixed; bottom: 15%; left: 50%; transform: translateX(-50%);
+            z-index: 600; text-align: center; display: none; width: 100%;
+        }
+        .sys-text-line {
+            font-size: 2rem; color: #00f0ff;
+            text-shadow: 0 0 10px #00f0ff; letter-spacing: 3px; margin-bottom: 10px;
+            opacity: 0; animation: fadeInUp 0.5s forwards;
+        }
+        .sys-sub-text {
+            font-size: 3rem; color: #ffd700;
+            text-shadow: 0 0 20px #ffd700; letter-spacing: 5px; font-weight: bold;
+            opacity: 0; animation: fadeInUp 0.5s 0.5s forwards;
+        }
+
+        @keyframes glitch { 0% { transform: translate(0) } 20% { transform: translate(-2px, 2px) } 40% { transform: translate(-2px, -2px) } 60% { transform: translate(2px, 2px) } 80% { transform: translate(2px, -2px) } 100% { transform: translate(0) } }
+        @keyframes blink { 50% { opacity: 0.5; transform: scale(0.98); } }
+        @keyframes shake { 0%, 100% { transform: translateX(0); } 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+        @keyframes fadeInUp { from { opacity: 0; transform: translateY(30px); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes rocketShake { 0% { transform: translate(1px, 1px); } 100% { transform: translate(-1px, -1px); } }
+        @keyframes fireFlicker { 0% { height: 70px; opacity: 0.8; transform: rotate(45deg) scaleX(1); } 100% { height: 100px; opacity: 1; transform: rotate(45deg) scaleX(1.3); } }
+    </style>
+</head>
+<body>
+
+    <div id="white-flash"></div>
+    <canvas id="transition-canvas"></canvas>
+    
+    <div id="game-title">請修復電路</div>
+    
+    <div id="rocket-container">
+        <div class="rocket-emoji">🚀</div>
+        <div class="rocket-fire"></div>
+    </div>
+
+    <div id="system-msg">
+        <div class="sys-text-line">推進器啟動...</div>
+        <div class="sys-sub-text">正在前往：神秘派對</div>
+    </div>
+
+    <div id="warning-overlay">
+        <div class="warning-text">！！系統嚴重錯誤！！</div>
+        <div class="warning-text" style="font-size: 1.5rem; color:white; margin-top:10px;">檢測到多處線路斷裂</div>
+        <div class="warning-sub">點擊螢幕 啟動緊急修復程序</div>
+    </div>
+
+    <div id="circuit-board">
+        <div class="pcb-traces"></div>
+        <svg id="wire-svg-layer"></svg>
+
+        <div class="column left-col">
+            <div class="col-label">訊號源</div> <div class="node start-node red" data-color="red">甲</div>
+            <div class="node start-node blue" data-color="blue">乙</div>
+            <div class="node start-node green" data-color="green">丙</div>
+            <div class="node start-node yellow" data-color="yellow">丁</div>
+        </div>
+
+        <div class="column right-col">
+            <div class="col-label">控制端</div> <div class="node end-node green" data-color="green">3</div>
+            <div class="node end-node red" data-color="red">1</div>
+            <div class="node end-node yellow" data-color="yellow">4</div>
+            <div class="node end-node blue" data-color="blue">2</div>
+        </div>
+    </div>
+
+    <audio id="bgm" src="bgm_repair.mp3" loop autoplay></audio>
+    <audio id="se-connect" src="connect.mp3"></audio>
+    <audio id="se-error" src="error.mp3"></audio>
+    <audio id="se-rocket" src="rocket_launch.mp3"></audio>
+
+    <script>
+        const board = document.getElementById('circuit-board');
+        const gameTitle = document.getElementById('game-title'); // 取得標題元素
+        const svgLayer = document.getElementById('wire-svg-layer');
+        const startNodes = document.querySelectorAll('.start-node');
+        const endNodes = document.querySelectorAll('.end-node');
+        const warningOverlay = document.getElementById('warning-overlay');
+        const whiteFlash = document.getElementById('white-flash');
+        const transitionCanvas = document.getElementById('transition-canvas');
+        const systemMsg = document.getElementById('system-msg');
+        const rocketContainer = document.getElementById('rocket-container');
+
+        const bgm = document.getElementById('bgm');
+        const seConnect = document.getElementById('se-connect');
+        const seError = document.getElementById('se-error');
+        const seRocket = document.getElementById('se-rocket');
+
+        let activeWire = null;
+        let startPoint = null;
+        let CurrentDragColor = null;
+        let connectionsCount = 0;
+        const totalConnections = 4;
+
+        window.onload = function() {
+            if(bgm) {
+                bgm.volume = 0.6;
+                bgm.play().catch(e => console.log("自動播放被瀏覽器阻擋，等待使用者點擊", e));
+            }
+        };
+
+        function playSound(audioEl) {
+            if (audioEl) {
+                audioEl.currentTime = 0;
+                audioEl.volume = 0.8;
+                audioEl.play().catch(e => console.log("音效播放失敗", e));
+            }
+        }
+
+        function scheduleBGMFadeOut() {
+            if (!bgm) return;
+            
+            setTimeout(() => {
+                const fadeDuration = 2000; 
+                const steps = 20; 
+                const intervalTime = fadeDuration / steps;
+                let currentVol = bgm.volume;
+                const volStep = currentVol / steps;
+
+                const fadeInterval = setInterval(() => {
+                    if (bgm.volume > volStep) {
+                        bgm.volume -= volStep;
+                    } else {
+                        bgm.volume = 0;
+                        bgm.pause();
+                        clearInterval(fadeInterval);
+                    }
+                }, intervalTime);
+            }, 5000); 
+        }
+
+        function fadeOutRocketAndGo() {
+            if (!seRocket) return;
+            
+            const duration = 3000; 
+            const steps = 30; 
+            const intervalTime = duration / steps;
+            const volStep = seRocket.volume / steps;
+
+            const rocketFade = setInterval(() => {
+                if (seRocket.volume > volStep) {
+                    seRocket.volume -= volStep;
+                } else {
+                    clearInterval(rocketFade);
+                    seRocket.volume = 0;
+                    seRocket.pause();
+                    
+                    whiteFlash.style.opacity = '1'; 
+                    setTimeout(() => {
+                        window.location.href = "test3.html"; 
+                    }, 2000); 
+                }
+            }, intervalTime);
+        }
+
+        warningOverlay.addEventListener('click', () => {
+            warningOverlay.style.display = 'none';
+            board.style.opacity = '1';
+            
+            if(bgm.paused) {
+                bgm.volume = 0.6; 
+                bgm.play().catch(e => console.log("BGM 阻擋"));
+            }
+
+            [seConnect, seError, seRocket].forEach(audio => {
+                audio.volume = 0; 
+                audio.play().then(() => {
+                    audio.pause(); 
+                    audio.currentTime = 0; 
+                    audio.volume = 0.8; 
+                }).catch(() => {});
+            });
+        });
+
+        function getCenter(element) {
+            const rect = element.getBoundingClientRect();
+            const svgRect = svgLayer.getBoundingClientRect();
+            return {
+                x: rect.left + rect.width / 2 - svgRect.left,
+                y: rect.top + rect.height / 2 - svgRect.top
+            };
+        }
+
+        startNodes.forEach(node => {
+            node.addEventListener('mousedown', handleDragStart);
+            node.addEventListener('touchstart', handleDragStart, {passive: false});
+        });
+
+        function handleDragStart(e) {
+            if (e.target.classList.contains('connected')) return;
+            e.preventDefault();
+            const startNode = e.target;
+            CurrentDragColor = startNode.dataset.color;
+            startPoint = getCenter(startNode);
+
+            activeWire = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+            activeWire.setAttribute('stroke', `var(--color-${CurrentDragColor})`);
+            activeWire.setAttribute('stroke-width', '10');
+            activeWire.setAttribute('fill', 'none');
+            activeWire.setAttribute('stroke-linecap', 'round');
+            activeWire.style.opacity = '0.7';
+            activeWire.setAttribute('d', `M ${startPoint.x} ${startPoint.y} L ${startPoint.x} ${startPoint.y}`);
+            svgLayer.appendChild(activeWire);
+
+            document.addEventListener('mousemove', handleDragging);
+            document.addEventListener('touchmove', handleDragging, {passive: false});
+            document.addEventListener('mouseup', handleDragEnd);
+            document.addEventListener('touchend', handleDragEnd);
+        }
+
+        function handleDragging(e) {
+            if (!activeWire) return;
+            e.preventDefault();
+            const touch = e.touches ? e.touches[0] : e;
+            const svgRect = svgLayer.getBoundingClientRect();
+            const currentX = touch.clientX - svgRect.left;
+            const currentY = touch.clientY - svgRect.top;
+            activeWire.setAttribute('d', `M ${startPoint.x} ${startPoint.y} L ${currentX} ${currentY}`);
+            checkHover(touch.clientX, touch.clientY);
+        }
+
+        function checkHover(clientX, clientY) {
+             endNodes.forEach(node => {
+                 node.classList.remove('hover-correct', 'hover-wrong');
+                 if(node.classList.contains('connected')) return;
+                 const rect = node.getBoundingClientRect();
+                 if (clientX >= rect.left && clientX <= rect.right && clientY >= rect.top && clientY <= rect.bottom) {
+                     if (node.dataset.color === CurrentDragColor) node.classList.add('hover-correct');
+                     else node.classList.add('hover-wrong');
+                 }
+             });
+        }
+
+        function handleDragEnd(e) {
+            if (!activeWire) return;
+            const touch = e.changedTouches ? e.changedTouches[0] : e;
+            let droppedCorrectly = false;
+            let landedOnWrongNode = false;
+
+            endNodes.forEach(endNode => {
+                 endNode.classList.remove('hover-correct', 'hover-wrong');
+                 if(endNode.classList.contains('connected')) return;
+                const rect = endNode.getBoundingClientRect();
+                if (touch.clientX >= rect.left && touch.clientX <= rect.right && touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+                    if (endNode.dataset.color === CurrentDragColor) {
+                        droppedCorrectly = true; connectionsCount++;
+                        playSound(seConnect); 
+                        const endPoint = getCenter(endNode);
+                        activeWire.setAttribute('d', `M ${startPoint.x} ${startPoint.y} L ${endPoint.x} ${endPoint.y}`);
+                        activeWire.style.opacity = '1'; activeWire.classList.add('svg-wire-connected');
+                        activeWire.style.color = `var(--color-${CurrentDragColor})`;
+                        endNode.classList.add('connected');
+                        document.querySelector(`.start-node.${CurrentDragColor}`).classList.add('connected');
+                        if (connectionsCount === totalConnections) { allCircuitsCompleted(); }
+                    } else {
+                        landedOnWrongNode = true;
+                    }
+                }
+            });
+
+            if (!droppedCorrectly) {
+                if (landedOnWrongNode) playSound(seError);
+                activeWire.remove();
+            }
+            
+            activeWire = null; startPoint = null; CurrentDragColor = null;
+            document.removeEventListener('mousemove', handleDragging);
+            document.removeEventListener('touchmove', handleDragging);
+            document.removeEventListener('mouseup', handleDragEnd);
+            document.removeEventListener('touchend', handleDragEnd);
+        }
+
+        let pCtx, pW, pH;
+        let stars = [];
+        let animationId;
+        let speed = 2; 
+
+        function initRocketCanvas() {
+            pW = transitionCanvas.width = window.innerWidth;
+            pH = transitionCanvas.height = window.innerHeight;
+            pCtx = transitionCanvas.getContext('2d');
+            createStars();
+        }
+
+        function createStars() {
+            stars = [];
+            const starCount = 300; 
+            for(let i=0; i<starCount; i++) {
+                stars.push({
+                    x: Math.random() * pW,
+                    y: Math.random() * pH,
+                    length: Math.random() * 5 + 2, 
+                    width: Math.random() * 2 + 0.5,
+                    speedMult: Math.random() * 0.5 + 0.8,
+                    color: Math.random() > 0.8 ? '#00f0ff' : '#ffffff'
+                });
+            }
+        }
+
+        function animateSpace() {
+            pCtx.fillStyle = 'rgba(2, 2, 5, 0.3)'; 
+            pCtx.fillRect(0, 0, pW, pH);
+
+            pCtx.fillStyle = '#fff';
+            stars.forEach(star => {
+                pCtx.beginPath();
+                pCtx.strokeStyle = star.color;
+                pCtx.lineWidth = star.width;
+                pCtx.moveTo(star.x, star.y);
+                
+                const lenX = star.length * (speed / 3);
+                const lenY = star.length * (speed / 3);
+                pCtx.lineTo(star.x - lenX, star.y + lenY); 
+                pCtx.stroke();
+
+                star.x -= speed * star.speedMult * 0.8;
+                star.y += speed * star.speedMult * 0.8;
+
+                if(star.y > pH || star.x < 0) {
+                    if (Math.random() > 0.5) {
+                        star.y = -50; 
+                        star.x = Math.random() * pW;
+                    } else {
+                        star.x = pW + 50; 
+                        star.y = Math.random() * pH;
+                    }
+                }
+            });
+
+            if(speed < 80) speed += 0.1; 
+
+            animationId = requestAnimationFrame(animateSpace);
+        }
+
+        function allCircuitsCompleted() {
+            scheduleBGMFadeOut();
+
+            board.style.boxShadow = "0 0 100px rgba(50, 200, 255, 1)";
+            board.style.transition = "all 0.5s ease-out";
+            board.style.transform = "scale(1.05)";
+            board.style.filter = "brightness(2)"; 
+
+            initRocketCanvas();
+
+            setTimeout(() => {
+                // 標題也要一起消失
+                gameTitle.style.transition = "opacity 2s";
+                gameTitle.style.opacity = "0";
+
+                board.style.transition = "all 2.0s cubic-bezier(0.6, -0.28, 0.735, 0.045)"; 
+                board.style.transform = "scale(0)"; 
+                board.style.opacity = "0";
+
+                setTimeout(() => {
+                    board.style.display = 'none';
+                    gameTitle.style.display = 'none'; // 隱藏標題
+                    
+                    transitionCanvas.style.display = 'block';
+                    rocketContainer.style.display = 'block'; 
+                    animateSpace();
+                    
+                    if(seRocket) {
+                        seRocket.volume = 1.0; 
+                        seRocket.play();
+                    }
+                    
+                    setTimeout(() => {
+                        systemMsg.style.display = 'block';
+                    }, 500);
+
+                    setTimeout(() => {
+                        rocketContainer.style.left = "150%"; 
+                        rocketContainer.style.top = "-50%"; 
+                        rocketContainer.style.transform = "scale(2.5)";
+                    }, 100);
+
+                    setTimeout(() => {
+                        fadeOutRocketAndGo();
+                    }, 4000); 
+
+                }, 1800); 
+            }, 1000); 
+        }
+
+        window.addEventListener('resize', () => {
+            if(transitionCanvas.style.display === 'block') initRocketCanvas();
+        });
+    </script>
+</body>
+</html>

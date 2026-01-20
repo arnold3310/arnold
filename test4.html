@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <meta name="google" content="notranslate" />
+    
+    <title>Project</title>
+    
+    <style>
+        /* =========================================
+           字體設置
+           ========================================= */
+        @font-face {
+            font-family: "HanYiShangWei";
+            src: url("汉仪尚巍手书W.ttf") format("truetype");
+            font-display: swap;
+        }
+        @font-face {
+            font-family: "YuWei";
+            src: url("禹卫书法行书简体.ttf") format("truetype");
+            font-display: swap;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-image: url("大海.png");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            margin: 0;
+            overflow: hidden;
+            background-color: #333; 
+        }
+
+        /* 遮罩層 */
+        .overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.4); 
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        /* 轉場白光遮罩 */
+        #white-flash {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: white;
+            z-index: 9999;
+            opacity: 1;    
+            pointer-events: none;
+            transition: opacity 1.5s ease-out; 
+        }
+
+        /* ================== 信封主體 ================== */
+        .card-wrapper {
+            position: relative;
+            z-index: 10;
+            transform: scale(0.005); 
+            filter: brightness(80) blur(10px) drop-shadow(0 0 80px white); 
+            opacity: 1; 
+        }
+        
+        .card-wrapper.materialized {
+            transform: scale(1);
+            filter: brightness(1) blur(0) drop-shadow(0 0 0 transparent);
+            transition: transform 7s cubic-bezier(0.1, 0.9, 0.2, 1), filter 7s ease-out;
+            animation: floatCard 3s ease-in-out infinite 7s; 
+        }
+
+        .card {
+            width: 500px;
+            height: 320px;
+            background-color: #a3d2ee; 
+            background-image: 
+                url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.7' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.15'/%3E%3C/svg%3E"),
+                linear-gradient(to bottom, rgba(255,255,255,0.2), rgba(0,0,0,0.05));
+            border: 1px solid #7daec8;
+            color: #555; 
+            box-shadow: 0 0 30px rgba(163, 210, 238, 0.4), 0 20px 50px rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            position: relative;
+            border-radius: 6px;
+            transition: opacity 1s ease, transform 0.5s ease;
+            user-select: none;
+            -webkit-user-select: none;
+            cursor: default; 
+        }
+        
+        .card.interactive { cursor: pointer; }
+        .card.interactive:hover {
+            transform: scale(1.02);
+            box-shadow: 0 0 40px rgba(163, 210, 238, 0.6), 0 25px 60px rgba(0,0,0,0.6);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 180px; 
+            clip-path: polygon(0 0, 100% 0, 50% 100%);
+            -webkit-clip-path: polygon(0 0, 100% 0, 50% 100%);
+            background-color: #8dbcd8;
+            background-image: linear-gradient(to bottom, rgba(255,255,255,0.1), rgba(0,0,0,0.1));
+            z-index: 1; 
+            transform-origin: top;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+            transition: transform 2.5s ease-in-out, z-index 2.5s;
+        }
+
+        @keyframes floatCard {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+
+        .text.envelope-msg {
+            z-index: 10; position: absolute; top: 60px;
+            font-family: 'Brush Script MT', cursive; 
+            font-size: 2.8em; color: #fff; 
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.2), 0 0 5px rgba(212, 175, 55, 0.8);
+            transform: rotate(-4deg); letter-spacing: 2px; 
+            pointer-events: none;
+        }
+
+        .heart {
+            position: absolute; top: 155px; width: 50px; height: 50px;
+            background: radial-gradient(circle at 30% 30%, #d35400, #a93226);
+            border-radius: 50%;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.3);
+            z-index: 20; border: 2px solid #922b21;
+            display: flex; justify-content: center; align-items: center;
+            transition: opacity 0.5s ease;
+        }
+        .heart::after { content: '✉'; color: #e6b0aa; font-size: 24px; }
+
+        .click-hint {
+            position: absolute; top: 220px; font-size: 14px;
+            font-family: 'HanYiShangWei', 'YuWei', serif;
+            color: #fff; letter-spacing: 2px; z-index: 25; pointer-events: none;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.4);
+            animation: hintFloat 2s ease-in-out infinite;
+            opacity: 0; transition: opacity 1s;
+        }
+        .click-hint.show { opacity: 1; }
+
+        /* ================== 信紙內容區域 ================== */
+        #box {
+            position: absolute; left: 0; top: 0; width: 100vw; height: 100vh;
+            z-index: -1; opacity: 0; 
+            transition: opacity 2s ease-in-out; 
+            display: flex; flex-direction: column; justify-content: flex-start; text-align: left;            
+            padding: 12vh 18vw 10vh 18vw; 
+            box-sizing: border-box;
+            
+            background-image: 
+                url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.08'/%3E%3C/svg%3E"),
+                radial-gradient(circle at center, rgba(0,0,0,0.3) 0%, rgba(0,0,0,0.8) 100%),
+                url("咖啡店.png"); 
+            background-size: auto, cover, cover; background-position: 0 0, center, center; 
+            background-color: #1a1a1a;
+            
+            /* 統一白色文字，保持字體清晰度 */
+            color: rgba(255, 255, 255, 0.95);
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.9); 
+            
+            font-size: 32px; 
+            font-weight: normal; 
+            font-family: 'HanYiShangWei', 'YuWei', cursive;
+            line-height: 2.0; 
+            letter-spacing: 2px;
+            
+            overflow-y: auto; 
+            scroll-behavior: smooth; 
+            
+            user-select: none; -webkit-user-select: none; cursor: default;
+        }
+
+        #box::-webkit-scrollbar { width: 6px; }
+        #box::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 3px; }
+        #box::-webkit-scrollbar-track { background: transparent; }
+
+        #box p { 
+            text-indent: 0; 
+            margin: 0; 
+            padding-bottom: 28px; 
+        }
+        
+        .recipient-name {
+            font-size: 1.2em;
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        #box .right-align { 
+            text-align: right; 
+            margin-top: 20px;
+        }
+
+        .sparkle {
+            position: absolute; border-radius: 50%; background: white;
+            box-shadow: 0 0 10px #fff, 0 0 20px #a3d2ee; opacity: 0; pointer-events: none; z-index: 5; 
+        }
+        @keyframes sparkleFloat {
+            0% { transform: translateY(0) scale(0); opacity: 0; }
+            50% { opacity: 0.8; }
+            100% { transform: translateY(-100px) scale(1.5); opacity: 0; }
+        }
+
+        .card.open::before { transform: rotateX(180deg); z-index: 0; }
+        .card.open .text, .card.open .heart, .card.open .click-hint { opacity: 0; pointer-events: none; }
+        .card.open { opacity: 0; pointer-events: none; transition-delay: 1.5s; }
+        .card-wrapper.opening { animation: none; }
+
+        .next-chapter-btn {
+            display: inline-block; padding: 15px 60px; font-size: 26px;
+            color: #fff; background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
+            backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,0.4); border-radius: 50px;
+            font-family: 'HanYiShangWei', cursive; letter-spacing: 3px; position: relative; overflow: hidden;
+            box-shadow: 0 0 20px rgba(255, 255, 255, 0.1); transition: all 0.5s; cursor: pointer;
+        }
+        .next-chapter-btn:hover {
+            background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(255,255,255,0.05));
+            border-color: rgba(255,255,255,0.8); box-shadow: 0 0 30px rgba(255,255,255,0.4);
+            transform: translateY(-3px) scale(1.02);
+        }
+
+    </style>
+</head>
+
+<body>
+    <div id="white-flash"></div>
+    <div class="overlay"></div>
+
+    <div class="card-wrapper">
+        <div class="card">
+            <div class="text content envelope-msg">Best wishes</div>
+            <div class="heart content"></div>
+            <div class="click-hint">點擊開啟 ✨</div>
+        </div>
+        <div id="sparkles-container"></div>
+    </div>
+
+    <div id="box"></div>
+
+    <audio id="bgm" src="生日歌纯钢琴.mp3" autoplay="autoplay" loop="loop"></audio>
+    <audio id="se-typing" src="typing.mp3" loop></audio>
+
+    <script>
+        let heart = document.querySelector('.heart')
+        let card = document.querySelector('.card')
+        let wrapper = document.querySelector('.card-wrapper')
+        let box = document.querySelector('#box')
+        let sparkleContainer = document.querySelector('#sparkles-container')
+        let whiteFlash = document.getElementById('white-flash');
+        let clickHint = document.querySelector('.click-hint');
+        let typingSound = document.getElementById('se-typing');
+        let bgm = document.getElementById('bgm');
+        let canOpen = false;
+
+        window.onload = function() {
+            setTimeout(() => { whiteFlash.style.opacity = 0; }, 100); 
+            setTimeout(() => { wrapper.classList.add('materialized'); }, 500); 
+            setTimeout(() => { whiteFlash.style.display = 'none'; }, 2000);
+            setTimeout(() => { canOpen = true; card.classList.add('interactive'); clickHint.classList.add('show'); }, 7500);
+        };
+
+        function createSparkles() {
+            setInterval(() => {
+                const sparkle = document.createElement('div');
+                sparkle.classList.add('sparkle');
+                const x = Math.random() * 700 - 100; 
+                const y = Math.random() * 500 - 50;
+                const size = Math.random() * 4 + 2; 
+                sparkle.style.left = x + 'px'; sparkle.style.top = y + 'px';
+                sparkle.style.width = size + 'px'; sparkle.style.height = size + 'px';
+                const duration = Math.random() * 2 + 2; 
+                sparkle.style.animation = `sparkleFloat ${duration}s linear forwards`;
+                if (Math.random() > 0.7) { sparkle.style.background = '#f1dfa8'; sparkle.style.boxShadow = '0 0 10px #f1dfa8'; }
+                sparkleContainer.appendChild(sparkle);
+                setTimeout(() => { sparkle.remove(); }, duration * 1000);
+            }, 150);
+        }
+        createSparkles();
+
+        card.addEventListener('click', function () {
+            if (!canOpen) return;
+            wrapper.classList.add('opening');
+            card.classList.add('open');
+
+            setTimeout(() => {
+                card.style.opacity = '0';
+                wrapper.style.display = 'none';
+                box.style.zIndex = '50';
+                box.style.opacity = '1'; 
+
+                // ★★★ 新文本內容 (純白文字，無特殊顏色標記) ★★★
+                let str = '楊雅羽 女俠 臺鑒：§'+
+                '烽火連三月，家書抵萬金。§'+
+                '歲月不居，轉瞬半載。今修書一封，非為遺言，乃報平安：吾身強體健，未被振刀震碎心脈，亦未被毒圈毒發身亡，尚能再戰三百回合！§'+
+                '回首前塵，妳我二人於虛擬江湖歷練，戰績彪炳。§'+
+                '雖曾涉獵三角洲之槍火，亦曾遊歷無人深空之浩渺，偶爾亦作知只之憨態。§'+
+                '然論及刻骨銘心，唯有永劫無間。§'+
+                '記否？絕境之中，互相扶持；亂戰之內，默契配合。§'+
+                '每一次振刀之清脆，每一次鉤索之飛渡，皆是你我情誼之見證。§'+
+                '紅塵滾滾，網海茫茫，能遇一頻率相同之戰友，實乃吾之大幸。§'+
+                '（嗶——！系統警告：您的「文言文裝逼額度」已耗盡，正在強制切換回人類語言...）§'+
+                '好啦，玩笑歸玩笑，還是在這裡先祝你生日快樂！🎂§'+
+                '趁著這個特別的日子，把那些文縐縐的台詞拋開，認真跟妳聊兩句。§'+
+                '回頭看這半年，時間真的過得超級快。雖然我們也玩了不少其他遊戲，但回憶最深、笑得最大聲的，果然還是永劫無間。§'+
+                '那些心跳加速的決賽圈，還有我們被對面大佛抓起來的日子，現在想起來都很有畫面。§'+
+                '我很慶幸能遇到妳這樣的好隊友，脾氣好又玩得來。跟妳打遊戲不用有什麼包袱，不需要為了掉分而壓力山大。贏了我們就互吹一波操作，輸了就一起吐槽對面是老六，這種感覺真的很放鬆。§'+
+                '謝謝妳總是能接住我的梗，也包容我有時候的瞎操作。§'+
+                '新的一歲，祝妳在現實生活中也像在遊戲裡一樣強大，生活裡沒有老六，只有驚喜！§'+
+                '^2026年1月21日§'+
+                '^全服第一帥 帥哥阿諾 頓首';
+                
+                let i = 0;
+                let strp = '<p class="recipient-name">'; 
+
+                function print() {
+                    // ★★★ 自動捲動：每次印字都確保捲軸在最下方 ★★★
+                    box.scrollTo(0, box.scrollHeight);
+
+                    if (str[i] == '§') {
+                        document.getElementById("box").innerHTML = strp + "</p><p>" + (i < str.length - 1 ? '|' : ''); 
+                        strp += "</p><p>";
+                        i++;
+                    } 
+                    else if (str[i] == '^') {
+                        let rightHtml = '</p><p class="right-align">';
+                        document.getElementById("box").innerHTML = strp + rightHtml + (i < str.length - 1 ? '|' : '');
+                        strp += rightHtml;
+                        i++;
+                    }
+                    else {
+                        strp += str[i];
+                        document.getElementById("box").innerHTML = strp + (i < str.length - 1 ? '|' : '');
+                        i++;
+                    }
+                }
+
+                setTimeout(() => {
+                    if (typingSound) {
+                        typingSound.currentTime = 0; 
+                        typingSound.volume = 0.5;    
+                        typingSound.play().catch(e => console.log("音效播放失敗", e));
+                    }
+
+                    let printid = setInterval(() => {
+                        if (i >= str.length) {
+                            clearInterval(printid);
+                            if (typingSound) typingSound.pause();
+                            // 確保最後再捲動一次
+                            setTimeout(() => box.scrollTo(0, box.scrollHeight), 100);
+                            showBonusButton();
+                        } else {
+                            print();
+                        }
+                    }, 150); 
+                }, 1500); 
+
+            }, 2200); 
+        });
+
+        function showBonusButton() {
+            let btnContainer = document.createElement("div");
+            btnContainer.style.marginTop = "70px"; 
+            btnContainer.style.textAlign = "center";
+            btnContainer.style.width = "100%";
+            btnContainer.style.opacity = "0"; 
+            btnContainer.style.transform = "translateY(20px)";
+            btnContainer.style.filter = "blur(10px)";
+            btnContainer.style.transition = "opacity 4s ease-in-out, transform 4s ease-out, filter 4s ease-out";
+            btnContainer.style.flexShrink = "0"; 
+
+            let btn = document.createElement("div");
+            btn.innerText = "✨ 神秘按鈕 ✨"; 
+            btn.className = "next-chapter-btn"; 
+            btn.addEventListener('click', fadeOutAndNavigate);
+
+            btnContainer.appendChild(btn);
+            box.appendChild(btnContainer);
+            
+            // 確保按鈕加入後，畫面也捲動到底部
+            setTimeout(() => box.scrollTo({ top: box.scrollHeight, behavior: 'smooth' }), 100);
+            
+            setTimeout(() => { 
+                btnContainer.style.opacity = "1"; 
+                btnContainer.style.transform = "translateY(0)";
+                btnContainer.style.filter = "blur(0)";
+            }, 10000);
+        }
+
+        function fadeOutAndNavigate(e) {
+            e.preventDefault(); 
+            whiteFlash.style.display = 'block';
+            void whiteFlash.offsetWidth; 
+            whiteFlash.style.transition = "opacity 3s ease-in";
+            whiteFlash.style.opacity = "1";
+            
+            if (bgm) {
+                const duration = 3000; 
+                const steps = 30; 
+                const intervalTime = duration / steps;
+                const volStep = bgm.volume / steps;
+                const fadeAudio = setInterval(() => {
+                    if (bgm.volume > volStep) { bgm.volume -= volStep; } 
+                    else { bgm.volume = 0; bgm.pause(); clearInterval(fadeAudio); }
+                }, intervalTime);
+            }
+            setTimeout(() => { window.location.href = "test5.html"; }, 3000);
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,956 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <title>Project - Fixed</title>
+  <style>
+    /* =========================================
+       1. 字體與基礎設置
+       ========================================= */
+    @font-face {
+        font-family: "HanYiShangWei";
+        src: url("汉仪尚巍手书W.ttf") format("truetype");
+    }
+    @font-face {
+        font-family: "YuWei"; 
+        src: url("禹卫书法行书简体.ttf") format("truetype");
+    }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #000;
+      font-family: "HanYiShangWei", "YuWei", "Microsoft JhengHei", sans-serif;
+    }
+
+    /* 背景層 */
+    #bg-layer {
+      position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: -1;
+      background: radial-gradient(ellipse at bottom, #1b2735 0%, #090a0f 100%);
+      background-image: url('星空.jpg'); 
+      background-size: cover; background-position: center; background-repeat: no-repeat;
+      filter: blur(15px) brightness(0.4);
+      transform: scale(1.1); 
+      transition: filter 2s ease-out, transform 4s ease-out, opacity 3s ease;
+    }
+    
+    #bg-layer.clear-view {
+        filter: blur(0px) brightness(1);
+        transform: scale(1);
+    }
+    
+    #bg-layer.film-mode {
+        filter: blur(8px) brightness(0.2) !important;
+        transform: scale(1.05);
+    }
+
+    /* 遮罩層 */
+    #zoom-overlay {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.85); 
+        z-index: 5000; 
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 1s ease; 
+        backdrop-filter: blur(8px);
+    }
+    #zoom-overlay.active {
+        opacity: 1;
+        pointer-events: auto;
+        cursor: pointer;
+    }
+
+    /* === 3D 容器 === */
+    #photo-layer {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 10; 
+        pointer-events: none; 
+        perspective: 1200px; 
+        transform-style: preserve-3d;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        transition: opacity 2s ease;
+    }
+
+    /* =========================================
+       2. 回憶膠捲樣式
+       ========================================= */
+    #film-layer {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 2000; 
+        pointer-events: none;
+        display: flex;
+        align-items: center; 
+        opacity: 0;
+        transition: opacity 1.5s ease;
+    }
+    
+    #film-track {
+        display: flex;
+        align-items: center; 
+        position: absolute;
+        left: 100vw; 
+        top: 58%; 
+        transform: translateY(-50%);
+        height: 280px; 
+        padding: 0 60px; 
+        background-color: #0a0a0a;
+        border-top: 3px solid #222;
+        border-bottom: 3px solid #222;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.9);
+        background-image: 
+            linear-gradient(to bottom, #1a1a1a 0%, #0a0a0a 100%),
+            linear-gradient(to bottom, #0a0a0a 0%, #1a1a1a 100%);
+    }
+    
+    #film-track::before {
+        content: '';
+        position: absolute;
+        top: 12px; left: 0; width: 100%; height: 18px;
+        background-image: radial-gradient(circle, #e0e0e0 2px, transparent 2.5px), 
+                          linear-gradient(90deg, #d0d0d0 14px, transparent 14px); 
+        background-size: 24px 18px; 
+        background-repeat: repeat-x;
+        mask-image: linear-gradient(90deg, #000 14px, transparent 14px);
+        -webkit-mask-image: linear-gradient(90deg, #000 14px, transparent 14px);
+        -webkit-mask-size: 24px 18px;
+        opacity: 0.8;
+    }
+    
+    #film-track::after {
+        content: '';
+        position: absolute;
+        bottom: 12px; left: 0; width: 100%; height: 18px;
+        background-image: linear-gradient(90deg, #d0d0d0 14px, transparent 14px);
+        background-size: 24px 18px; 
+        background-repeat: repeat-x;
+        opacity: 0.8;
+    }
+
+    .film-frame {
+        width: 240px;
+        height: 180px;
+        margin: 0 45px; 
+        background: #000;
+        padding: 8px;
+        border: 1px solid #333;
+        flex-shrink: 0; 
+        position: relative;
+        box-shadow: inset 0 0 30px rgba(0,0,0,0.8); 
+        overflow: hidden;
+    }
+    
+    .film-frame::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 100%;
+        background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, transparent 50%, rgba(0,0,0,0.2) 100%);
+        z-index: 2;
+        pointer-events: none;
+    }
+
+    .film-frame img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        opacity: 0.95; 
+        filter: contrast(1.1) saturate(1.1);
+    }
+
+    /* =========================================
+       3. 3D 星系照片樣式
+       ========================================= */
+    .polaroid {
+        position: absolute; 
+        background: #fff;
+        padding: 2px 2px 6px 2px; 
+        box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        width: 65px; 
+        height: 82px; 
+        border-radius: 2px;
+        opacity: 0; 
+        pointer-events: auto; 
+        cursor: zoom-in;
+        will-change: transform, opacity;
+        
+        transition: 
+            opacity 1s ease-out,
+            padding 0.6s ease,
+            box-shadow 0.6s ease,
+            transform 0.6s cubic-bezier(0.25, 1, 0.5, 1);
+
+        z-index: 20;
+        backface-visibility: hidden;
+    }
+
+    .img-container {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: #f0f0f0;
+        display: flex; 
+        justify-content: center;
+        align-items: center;
+    }
+
+    .polaroid img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover; 
+        image-rendering: high-quality;
+    }
+
+    .polaroid:not(.zoomed):hover {
+        z-index: 3000 !important; 
+        box-shadow: 0 0 25px rgba(255, 255, 255, 0.8);
+        filter: brightness(1.15);
+    }
+
+    .polaroid.zoomed {
+        cursor: zoom-out;
+        box-shadow: 0 0 100px rgba(0,0,0,0.9); 
+        padding: 5px !important; 
+        filter: none;
+    }
+    
+    .polaroid.zoomed img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain; 
+        background: #fff;
+    }
+
+    /* Canvas */
+    canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+    #c1 { display: none; } /* 隱藏的緩衝畫布 */
+    #c2, #c3 { z-index: 50; pointer-events: none; }
+    #countdown-canvas { z-index: 2000; pointer-events: none; filter: drop-shadow(0 0 10px rgba(255,255,255,0.5)); }
+
+    #intro-layer {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        display: flex; flex-direction: column; justify-content: center; align-items: center;
+        z-index: 1000; pointer-events: none;
+        background: rgba(0,0,0,0.2); 
+        transition: opacity 1.5s ease-out; 
+    }
+    #typewriter-container {
+        color: #fff; text-align: center;
+        text-shadow: 0 0 15px rgba(255, 255, 255, 0.8), 0 0 30px rgba(0, 240, 255, 0.6);
+        width: 100%; /* 確保容器寬度 */
+    }
+    .intro-line { display: block; font-size: 3.5rem; letter-spacing: 5px; margin-bottom: 30px; min-height: 1.5em; }
+    .intro-sub { display: block; font-size: 2rem; color: #ddd; letter-spacing: 3px; margin-top: 20px; min-height: 1.5em; }
+    .cursor { display: inline-block; width: 3px; height: 1em; background: #fff; margin-left: 5px; vertical-align: bottom; animation: blink 0.8s infinite; }
+    
+    /* === 謝幕層 === */
+    #end-layer {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        z-index: 8000;
+        pointer-events: none;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        opacity: 0;
+        transition: opacity 3s ease-in;
+    }
+    
+    .end-text {
+        font-family: "HanYiShangWei", cursive;
+        font-size: 3.5rem;
+        color: #fff;
+        text-shadow: 0 0 20px rgba(255,255,255,0.8);
+        letter-spacing: 10px;
+    }
+
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+  </style>
+</head>
+
+<body>
+  <div id="bg-layer"></div>
+  <div id="zoom-overlay"></div>
+  
+  <div id="film-layer">
+      <div id="film-track"></div>
+  </div>
+
+  <div id="photo-layer"></div>
+
+  <div id="intro-layer">
+      <div id="typewriter-container">
+          <div id="line1" class="intro-line"></div>
+          <div id="line2" class="intro-sub"></div>
+          <div id="line3" class="intro-sub" style="margin-top: 50px; font-size: 2.2rem; color: #ffd700;"></div>
+      </div>
+  </div>
+  
+  <div id="end-layer">
+      <div class="end-text">The End</div>
+  </div>
+
+  <canvas id="c1"></canvas> 
+  <canvas id="c2"></canvas> 
+  <canvas id="c3"></canvas> 
+  <canvas id="countdown-canvas"></canvas> 
+  
+  <audio id="bgm" src="Nand.mp3"></audio>
+  <audio id="se-typing" src="typing.mp3" loop></audio>
+  <audio id="se-countdown" src="countdown.mp3"></audio>
+
+  <script>
+    const bgm = document.getElementById('bgm');
+    const typingSound = document.getElementById('se-typing');
+    const countSound = document.getElementById('se-countdown');
+    const bgLayer = document.getElementById('bg-layer');
+    const zoomOverlay = document.getElementById('zoom-overlay');
+    const photoLayer = document.getElementById('photo-layer');
+    const filmLayer = document.getElementById('film-layer');
+    const filmTrack = document.getElementById('film-track');
+    const endLayer = document.getElementById('end-layer');
+    
+    let currentZoomedPhoto = null; 
+    let restoreData = {}; 
+    let photoObjects = []; 
+    let isOrbiting = false; 
+    let isOrbitPaused = false;
+    let isEnding = false;
+    
+    let drawnTextPixels = []; // 儲存 {offsetX, offsetY, color, glowColor}
+    let filmSequenceTriggered = false;
+
+    // === 修正：初始化視窗尺寸 ===
+    let w = window.innerWidth;
+    let h = window.innerHeight;
+    
+    const cCount = document.getElementById('countdown-canvas');
+    const ctxCount = cCount.getContext('2d');
+    const c1 = document.getElementById('c1');
+    const c2 = document.getElementById('c2');
+    const c3 = document.getElementById('c3');
+    const ctx1 = c1.getContext('2d');
+    const ctx2 = c2.getContext('2d');
+    const ctx3 = c3.getContext('2d');
+    
+    const PERSPECTIVE = 1200;
+
+    // 設定 canvas 尺寸
+    function updateCanvasSize() {
+        w = window.innerWidth;
+        h = window.innerHeight;
+        cCount.width = w; cCount.height = h;
+        c2.width = w; c2.height = h;
+        c3.width = w; c3.height = h;
+    }
+    updateCanvasSize(); // 立即執行一次
+
+    // === 監聽音樂結束 ===
+    bgm.addEventListener('ended', () => {
+        console.log("Music ended. Triggering ending sequence.");
+        runEndingSequence();
+    });
+
+    // === 修正：Resize 邏輯 ===
+    // 改為「重繪」而非位移，確保座標永遠相對於中心
+    window.addEventListener('resize', () => {
+        updateCanvasSize();
+        
+        // 重繪已經形成的文字 (C3)
+        if (drawnTextPixels.length > 0) {
+            ctx3.clearRect(0, 0, w, h);
+            ctx3.save();
+            ctx3.globalCompositeOperation = 'lighter';
+            drawnTextPixels.forEach(p => {
+                // 將相對中心的 Offset 轉換回絕對座標
+                const drawX = (w / 2) + p.offsetX;
+                const drawY = (h / 2) + p.offsetY;
+                
+                ctx3.shadowBlur = 15; 
+                ctx3.shadowColor = p.glowColor;
+                ctx3.fillStyle = p.color;
+                ctx3.beginPath(); 
+                ctx3.arc(drawX, drawY, 2, 0, Math.PI*2); 
+                ctx3.fill();
+            });
+            ctx3.restore();
+        }
+    });
+
+    zoomOverlay.addEventListener('click', () => {
+        if(currentZoomedPhoto) zoomOutPhoto(currentZoomedPhoto);
+    });
+
+    window.onload = async function() {
+        updateCanvasSize(); // 再次確保尺寸正確
+        await runTypewriterSequence();
+        await runParticleCountdown();
+        bgLayer.classList.add('clear-view'); 
+        bgm.volume = 1.0;
+        bgm.play().catch(e => console.warn("需互動播放", e));
+        startMainFireworkLoop();
+    };
+
+    function wait(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    // === 謝幕特效 ===
+    function runEndingSequence() {
+        if(isEnding) return;
+        isEnding = true;
+        
+        isOrbitPaused = true;
+        isOrbiting = false;
+        if(currentZoomedPhoto) zoomOutPhoto(currentZoomedPhoto);
+        
+        const allPhotos = document.querySelectorAll('.polaroid');
+        allPhotos.forEach((photo) => {
+            const delay = Math.random() * 0.5;
+            photo.style.transition = `all 2s ease-in-out ${delay}s`;
+            photo.style.transform = 'translate3d(0, 0, -500px) scale(0) rotate(720deg)';
+            photo.style.opacity = '0';
+        });
+
+        setTimeout(() => {
+            bgLayer.style.opacity = '0';
+            c2.style.opacity = '0';
+            c3.style.opacity = '0';
+            filmLayer.style.opacity = '0';
+        }, 1000);
+
+        setTimeout(() => {
+            endLayer.style.opacity = '1';
+        }, 2500);
+    }
+
+    // === 1. 膠捲模式 ===
+    async function runFilmStripSequence() {
+        const photoCount = 30;
+        const imgExt = '.png';
+        
+        for(let i = 0; i < photoCount; i++) {
+            const fileName = `photo${i+1}${imgExt}`;
+            const frame = document.createElement('div');
+            frame.className = 'film-frame';
+            const img = document.createElement('img');
+            img.src = fileName;
+            frame.appendChild(img);
+            filmTrack.appendChild(frame);
+        }
+
+        bgLayer.classList.add('film-mode');
+        filmLayer.style.opacity = 1;
+        await wait(1000); 
+        
+        const animation = filmTrack.animate([
+            { transform: `translateY(-50%) translateX(0)` },
+            { transform: `translateY(-50%) translateX(calc(-100% - 100vw))` }
+        ], {
+            duration: 40000, 
+            easing: 'linear',
+            fill: 'forwards'
+        });
+
+        await animation.finished;
+        filmLayer.style.opacity = 0;
+        bgLayer.classList.remove('film-mode');
+        await wait(1500); 
+        filmLayer.style.display = 'none';
+        runPhotoSequence(); 
+    }
+
+    // === 2. 3D 螺旋座標計算 & 發牌效果 ===
+    async function runPhotoSequence() {
+        if(isEnding) return;
+        const photoCount = 30; 
+        const imgExt = '.png'; 
+        const positions = calculateHelixPositions(photoCount);
+
+        let indices = Array.from({length: photoCount}, (_, i) => i);
+        indices.sort(() => Math.random() - 0.5); 
+
+        for (let i = 0; i < photoCount; i++) {
+            if(isEnding) break;
+            const posIndex = indices[i]; 
+            const pos = positions[posIndex];
+            const fileName = `photo${posIndex+1}${imgExt}`; 
+            createCardDealingPhoto(photoLayer, fileName, pos);
+            await wait(150); 
+        }
+
+        setTimeout(() => {
+            if(!isEnding) start3DOrbitSystem();
+        }, 1200);
+    }
+
+    function calculateHelixPositions(count) {
+        const positions = [];
+        const totalLoops = 3.0; 
+        const startY = -80;
+        const endY = 320; 
+        // 使用初始的 w, h，後續 resize 由 CSS transform 居中處理
+        const radius = Math.min(window.innerWidth, window.innerHeight) * 0.55;
+        for (let i = 0; i < count; i++) {
+            const progress = i / (count - 1);
+            const angle = progress * (Math.PI * 2 * totalLoops);
+            const y = startY + (progress * (endY - startY));
+            positions.push({ angle: angle, y: y, radius: radius });
+        }
+        return positions;
+    }
+
+    // === 3. 創建照片 ===
+    function createCardDealingPhoto(container, src, posData) {
+        const div = document.createElement('div');
+        div.className = 'polaroid';
+        // CSS 已經置中 (left:50%, top:50%)，這裡設定 margin 修正中心點
+        div.style.left = '50%';
+        div.style.top = '50%';
+        div.style.marginLeft = '-34.5px'; 
+        div.style.marginTop = '-45px'; 
+
+        const innerDiv = document.createElement('div');
+        innerDiv.className = 'img-container';
+        const img = document.createElement('img');
+        img.src = src;
+        img.onerror = function() { div.remove(); }; 
+        innerDiv.appendChild(img);
+        div.appendChild(innerDiv);
+
+        const rot = (Math.random() - 0.5) * 8; 
+        div.dataset.rot = rot; 
+
+        div.addEventListener('click', (e) => {
+            if(isEnding) return;
+            e.stopPropagation(); 
+            if (div.classList.contains('zoomed')) {
+                zoomOutPhoto(div);
+            } else {
+                if(currentZoomedPhoto) zoomOutPhoto(currentZoomedPhoto);
+                requestAnimationFrame(() => zoomInPhoto(div));
+            }
+        });
+
+        container.appendChild(div);
+        register3DObject(div, posData.angle, posData.y, posData.radius, rot);
+
+        div.style.transform = `translate3d(0, 0, 0) scale(0) rotate(0deg)`;
+        div.style.opacity = 0;
+        
+        const targetX = Math.cos(posData.angle) * posData.radius;
+        const targetZ = Math.sin(posData.angle) * posData.radius;
+        const targetY = posData.y;
+
+        requestAnimationFrame(() => {
+            div.style.transition = 'transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.5s ease';
+            div.style.opacity = 1;
+            div.style.transform = `translate3d(${targetX}px, ${targetY}px, ${targetZ}px) rotate(${rot}deg)`;
+        });
+        
+        setTimeout(() => {
+             if(!isEnding) div.style.transition = 'opacity 1s, padding 0.6s, box-shadow 0.6s ease, transform 0.6s cubic-bezier(0.25, 1, 0.5, 1)';
+        }, 800);
+    }
+
+    // === 4. 3D 星系流轉系統 ===
+    function register3DObject(el, angle, y, radius, selfRot) {
+        const speed = 0.0007; 
+        photoObjects.push({ el, angle, y, radius, selfRot, speed });
+    }
+
+    function start3DOrbitSystem() {
+        if(isOrbiting) return;
+        isOrbiting = true;
+        orbitLoop3D();
+    }
+
+    function orbitLoop3D() {
+        if(!isOrbiting) return;
+        if(isOrbitPaused) {
+             requestAnimationFrame(orbitLoop3D);
+             return;
+        }
+        photoObjects.forEach(obj => {
+            if (obj.el.classList.contains('zoomed')) return;
+            obj.angle += obj.speed; 
+            const x = Math.cos(obj.angle) * obj.radius;
+            const z = Math.sin(obj.angle) * obj.radius;
+            const y = obj.y;
+            obj.el.style.transform = `translate3d(${x}px, ${y}px, ${z}px) rotate(${obj.selfRot}deg)`;
+        });
+        requestAnimationFrame(orbitLoop3D);
+    }
+
+    // === 5. 智慧型縮放邏輯 ===
+    function zoomInPhoto(div) {
+        if(isEnding) return;
+        isOrbitPaused = true; 
+        currentZoomedPhoto = div;
+        zoomOverlay.classList.add('active');
+        const rect = div.getBoundingClientRect();
+        restoreData = {
+            rot: div.dataset.rot,
+            zIndex: div.style.zIndex,
+            transition: div.style.transition
+        };
+        div.style.transition = 'all 1s cubic-bezier(0.19, 1, 0.22, 1)';
+        div.style.position = 'fixed';
+        div.style.left = `${rect.left}px`;
+        div.style.top = `${rect.top}px`;
+        div.style.width = `${rect.width}px`;
+        div.style.height = `${rect.height}px`;
+        div.style.margin = '0'; 
+        div.style.zIndex = '6000';
+        div.style.transform = `rotate(${restoreData.rot}deg) scale(1)`; 
+        document.body.appendChild(div);
+
+        const img = div.querySelector('img');
+        let naturalRatio = 65/82; 
+        if (img && img.naturalWidth && img.naturalHeight) {
+            naturalRatio = img.naturalWidth / img.naturalHeight;
+        }
+        let targetH = h * 0.85;
+        let targetW = targetH * naturalRatio;
+        if (targetW > w * 0.9) {
+            targetW = w * 0.9;
+            targetH = targetW / naturalRatio;
+        }
+        const targetX = (w - targetW) / 2;
+        const targetY = (h - targetH) / 2;
+        div.offsetHeight; 
+        div.classList.add('zoomed');
+        div.style.left = `${targetX}px`;
+        div.style.top = `${targetY}px`;
+        div.style.width = `${targetW}px`;
+        div.style.height = `${targetH}px`;
+        div.style.transform = 'rotate(0deg)'; 
+    }
+
+    function zoomOutPhoto(div) {
+        currentZoomedPhoto = null;
+        zoomOverlay.classList.remove('active');
+        div.classList.remove('zoomed');
+        
+        const obj = photoObjects.find(p => p.el === div);
+        if (!obj) { isOrbitPaused = false; return; }
+
+        const x = Math.cos(obj.angle) * obj.radius;
+        const z = Math.sin(obj.angle) * obj.radius;
+        const y = obj.y;
+        const perspectiveScale = PERSPECTIVE / (PERSPECTIVE - z);
+        const centerX = w / 2;
+        const centerY = h / 2;
+        const screenOffsetX = x * perspectiveScale;
+        const screenOffsetY = y * perspectiveScale;
+        const targetCenterX = centerX + screenOffsetX;
+        const targetCenterY = centerY + screenOffsetY;
+        const targetWidth = 65 * perspectiveScale;
+        const targetHeight = 82 * perspectiveScale;
+
+        div.style.transition = 'all 1s cubic-bezier(0.25, 1, 0.5, 1)';
+        div.style.width = `${targetWidth}px`;
+        div.style.height = `${targetHeight}px`;
+        div.style.left = `${targetCenterX - targetWidth/2}px`;
+        div.style.top = `${targetCenterY - targetHeight/2}px`;
+        div.style.transform = `rotate(${restoreData.rot}deg)`; 
+        div.style.boxShadow = '0 0 0 rgba(0,0,0,0)'; 
+
+        setTimeout(() => {
+            if(isEnding) return;
+
+            div.style.transition = 'none';
+            div.style.position = 'absolute'; 
+            div.style.zIndex = ''; 
+            div.style.left = '50%';
+            div.style.top = '50%';
+            div.style.margin = '';
+            div.style.marginLeft = '-34.5px';
+            div.style.marginTop = '-45px';
+            div.style.width = '65px';
+            div.style.height = '82px';
+            div.style.boxShadow = ''; 
+            div.style.transform = `translate3d(${x}px, ${y}px, ${z}px) rotate(${obj.selfRot}deg)`;
+
+            photoLayer.appendChild(div);
+            div.offsetHeight;
+            div.style.transition = 'opacity 1s, padding 0.6s, box-shadow 0.6s ease, transform 0.6s cubic-bezier(0.25, 1, 0.5, 1)'; 
+            isOrbitPaused = false;
+        }, 1000); 
+    }
+
+    // === 6. 文字與粒子系統 ===
+    async function runTypewriterSequence() {
+        if(typingSound) { typingSound.currentTime = 0; typingSound.volume = 0.5; typingSound.play().catch(e=>{}); }
+        const text1 = "這漫天星光，皆是為妳而閃爍";
+        const text2 = "願妳的未來，如這片星河般璀璨";
+        const text3 = "準備好迎接這份專屬於妳的奇蹟了嗎？";
+        await typeText("line1", text1, 150); await wait(500);
+        await typeText("line2", text2, 100); await wait(800);
+        await typeText("line3", text3, 100);
+        if(typingSound) { typingSound.pause(); }
+        await wait(3000);
+        document.getElementById('intro-layer').style.opacity = 0;
+        await wait(1500); 
+        document.getElementById('intro-layer').style.display = 'none';
+    }
+    
+    async function typeText(elementId, text, speed) {
+        const el = document.getElementById(elementId);
+        el.innerHTML = '<span class="cursor">|</span>'; 
+        const cursor = el.querySelector('.cursor');
+        for (let i = 0; i < text.length; i++) {
+            const charSpan = document.createElement('span');
+            charSpan.innerText = text[i];
+            el.insertBefore(charSpan, cursor);
+            await wait(speed + Math.random() * 50); 
+        }
+        cursor.style.display = 'none'; 
+    }
+
+    let pAnimationId;
+    let countdownParticles = [];
+    const luxColors = ['#FFFFFF', '#E0FFFF', '#87CEFA', '#FF69B4', '#9370DB', '#00FFFF'];
+    
+    function scanNumberPixels(num) {
+        const tempC = document.createElement('canvas');
+        const tempCtx = tempC.getContext('2d');
+        const size = Math.min(w, h) * 0.5; 
+        tempC.width = w; tempC.height = h;
+        tempCtx.font = `900 ${size}px "DFKai-SB", "BiauKai", "標楷體", serif`; 
+        tempCtx.fillStyle = 'white'; tempCtx.textAlign = 'center'; tempCtx.textBaseline = 'middle';
+        tempCtx.fillText(num, w/2, h/2);
+        const imgData = tempCtx.getImageData(0, 0, w, h).data;
+        const points = []; const gap = 4; 
+        for(let y=0; y<h; y+=gap) { for(let x=0; x<w; x+=gap) { if(imgData[(y*w + x)*4 + 3] > 128) points.push({x, y}); } }
+        return points;
+    }
+    
+    async function runParticleCountdown() {
+        ctxCount.globalCompositeOperation = 'lighter';
+        for (let i = 5; i >= 1; i--) {
+            if(countSound) { countSound.currentTime = 0; countSound.volume = 0.8; countSound.play().catch(e=>{}); }
+            await animateNumber(i);
+        }
+        ctxCount.clearRect(0, 0, w, h);
+        ctxCount.globalCompositeOperation = 'source-over'; 
+    }
+    
+    function animateNumber(num) {
+        return new Promise(resolve => {
+            const points = scanNumberPixels(num);
+            countdownParticles = [];
+            points.forEach(p => {
+                const color = luxColors[Math.floor(Math.random() * luxColors.length)];
+                countdownParticles.push({
+                    x: Math.random() * w * 1.5 - w * 0.25, y: Math.random() * h * 1.5 - h * 0.25,
+                    tx: p.x, ty: p.y, vx: 0, vy: 0, color: color, 
+                    size: Math.random() * 2.5 + 0.5, state: 'gathering', speedFactor: Math.random() * 0.04 + 0.03
+                });
+            });
+            let frame = 0; const gatherDuration = 80; const holdDuration = 40; const explodeDuration = 80; 
+            function loop() {
+                ctxCount.globalCompositeOperation = 'destination-out';
+                ctxCount.fillStyle = 'rgba(0, 0, 0, 0.1)'; ctxCount.fillRect(0, 0, w, h);
+                ctxCount.globalCompositeOperation = 'lighter'; 
+                countdownParticles.forEach(p => {
+                    if (frame < gatherDuration) { p.x += (p.tx - p.x) * p.speedFactor; p.y += (p.ty - p.y) * p.speedFactor; } 
+                    else if (frame < gatherDuration + holdDuration) { p.x = p.tx + (Math.random()-0.5) * 1.5; p.y = p.ty + (Math.random()-0.5) * 1.5; }
+                    else if (frame < gatherDuration + holdDuration + explodeDuration) {
+                        if (p.state !== 'exploding') {
+                            const angle = Math.random() * Math.PI * 2; const speed = Math.random() * 12 + 2; 
+                            p.vx = Math.cos(angle) * speed; p.vy = Math.sin(angle) * speed; p.state = 'exploding';
+                        }
+                        p.vx *= 0.94; p.vy *= 0.94; p.vy += 0.02; p.x += p.vx; p.y += p.vy; p.size *= 0.96; 
+                    }
+                    if (p.size > 0.1) { ctxCount.fillStyle = p.color; ctxCount.beginPath(); ctxCount.arc(p.x, p.y, p.size, 0, Math.PI*2); ctxCount.fill(); }
+                });
+                frame++;
+                if (frame < gatherDuration + holdDuration + explodeDuration) pAnimationId = requestAnimationFrame(loop);
+                else { cancelAnimationFrame(pAnimationId); resolve(); }
+            }
+            loop();
+        });
+    }
+
+    const FIREWORK_CONFIG = { particleCount: 270, fidelity: 3, fontSize: 220, text: '楊雅羽，生日快樂', fontFamily: '"HanYiShangWei", "YuWei", cursive' };
+    let isMainLoopRunning = false;
+    
+    // 初始化文字目標點 (在隱藏 Canvas 上)
+    ctx1.fillStyle = '#000';
+    // 確保 font size 在合理範圍 (防止 w 為 0 時無限迴圈)
+    let safeW = w > 0 ? w : 1920; 
+    let textWidth = 99999999; let currentFontSize = FIREWORK_CONFIG.fontSize;
+    
+    while (textWidth > safeW * 0.85) {
+      ctx1.font = `900 ${currentFontSize--}px ${FIREWORK_CONFIG.fontFamily}`;
+      textWidth = ctx1.measureText(FIREWORK_CONFIG.text).width;
+    }
+    
+    c1.width = textWidth + 20; 
+    c1.height = currentFontSize * 1.5;
+    ctx1.font = `900 ${currentFontSize}px ${FIREWORK_CONFIG.fontFamily}`;
+    ctx1.fillText(FIREWORK_CONFIG.text, 0, currentFontSize);
+    
+    const imgData = ctx1.getImageData(0, 0, c1.width, c1.height);
+    const targets = [];
+    
+    // === 修正：儲存相對中心的 Offset，而非絕對座標 ===
+    // 這樣 Resize 後只要加上新的 w/2 即可
+    const textCenterX = c1.width / 2;
+    const textCenterY = c1.height / 2;
+
+    for (let i = 0; i < imgData.data.length; i += 4) {
+      if (imgData.data[i + 3] > 128) {
+        const x = (i / 4) % c1.width; 
+        const y = Math.floor((i / 4) / c1.width);
+        if (x % FIREWORK_CONFIG.fidelity === 0 && y % FIREWORK_CONFIG.fidelity === 0) {
+            // 計算相對於文字中心的偏移
+            const offsetX = x - textCenterX;
+            const offsetY = y - textCenterY - 300; // -300 是為了讓文字偏上
+            targets.push({ offsetX, offsetY });
+        }
+      }
+    }
+    
+    ctx3.shadowColor = '#FFF'; ctx3.shadowBlur = 10;
+    
+    function getTarget() {
+      if (targets.length > 0) {
+        const idx = Math.floor(Math.random() * targets.length);
+        const t = targets[idx];
+        targets.splice(idx, 1);
+        return t; // 回傳 {offsetX, offsetY}
+      }
+    }
+
+    class Meteor {
+      constructor() { this.reset(); }
+      reset() {
+        this.x = Math.random() * w + 300; this.y = Math.random() * -100;
+        this.len = Math.random() * 200 + 150; this.size = Math.random() * 0.5 + 0.5; 
+        this.speed = Math.random() * 0.5 + 2; this.angle = Math.PI / 4 + (Math.random() * 0.2); this.hue = Math.random() * 50 + 200; 
+      }
+      update() {
+        this.x -= this.speed * Math.cos(this.angle); this.y += this.speed * Math.sin(this.angle);
+        if (this.x < -300 || this.y > h + 300) this.reset();
+      }
+      draw() {
+        ctx2.save(); ctx2.translate(this.x, this.y); ctx2.rotate(Math.PI - this.angle);
+        ctx2.fillStyle = '#fff'; ctx2.shadowBlur = 5; ctx2.shadowColor = '#fff';
+        ctx2.beginPath(); ctx2.arc(0, 0, this.size * 2, 0, Math.PI * 2); ctx2.fill();
+        const gradient = ctx2.createLinearGradient(0, 0, -this.len, 0);
+        gradient.addColorStop(0, "rgba(255, 255, 255, 1)"); gradient.addColorStop(0.1, `hsla(${this.hue}, 100%, 80%, 0.8)`); gradient.addColorStop(1, "transparent");                 
+        ctx2.fillStyle = gradient; ctx2.shadowBlur = 0; ctx2.beginPath(); ctx2.moveTo(0, -this.size * 0.5); ctx2.lineTo(-this.len, 0); ctx2.lineTo(0, this.size * 0.5); ctx2.fill(); ctx2.restore();
+      }
+    }
+
+    class Shard {
+      constructor(x, y) {
+        this.x = x; this.y = y; this.hue = Math.floor(Math.random() * 140) + 180;
+        this.target = getTarget(); // 取得 {offsetX, offsetY}
+        this.angle = Math.random() * Math.PI * 2;
+        this.speed = Math.random() * 3.5 + 2; this.friction = 0.95; this.gravity = 0.1;
+        this.size = 2; this.timer = 0; this.ttl = 100 + Math.random() * 50; 
+        this.vx = Math.cos(this.angle) * this.speed; this.vy = Math.sin(this.angle) * this.speed;
+        this.lightness = 70 + Math.random() * 25;
+        this.color = `hsl(${this.hue}, 100%, ${this.lightness}%)`; 
+        this.glowColor = `hsl(${this.hue}, 100%, 60%)`;
+      }
+      update() {
+        this.vx *= this.friction; this.vy *= this.friction; this.vy += this.gravity;
+        
+        if (this.target) {
+            // === 修正：動態計算絕對目標位置 ===
+            const tx = (w / 2) + this.target.offsetX;
+            const ty = (h / 2) + this.target.offsetY;
+            
+            const dx = tx - this.x; 
+            const dy = ty - this.y; 
+            const dist = Math.sqrt(dx*dx + dy*dy);
+            if(dist < 50) { this.vx += dx * 0.005; this.vy += dy * 0.005; }
+        }
+        this.x += this.vx; this.y += this.vy; this.timer++;
+      }
+      draw() {
+        const lightness = 40 + Math.random() * 30; 
+        ctx2.save(); ctx2.globalCompositeOperation = 'lighter'; 
+        ctx2.fillStyle = `hsl(${this.hue}, 100%, ${lightness}%)`; ctx2.shadowBlur = 5; ctx2.shadowColor = `hsl(${this.hue}, 100%, 50%)`;
+        ctx2.beginPath(); ctx2.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx2.fill(); ctx2.restore();
+      }
+    }
+
+    class Rocket {
+      constructor() {
+        this.x = Math.random() * w; this.y = h; this.hue = Math.random() * 360;
+        this.targetY = h * 0.15 + Math.random() * h * 0.25; 
+        this.vy = -(10 + Math.random() * 5); this.vx = (Math.random() - 0.5) * 2; 
+      }
+      update() {
+        this.x += this.vx; this.y += this.vy; this.vy += 0.12; 
+        if (this.vy >= 0 || this.y < this.targetY) { this.explode(); return false; }
+        return true; 
+      }
+      draw() { ctx2.fillStyle = `hsl(${this.hue}, 100%, 50%)`; ctx2.fillRect(this.x, this.y, 3, 10); }
+      explode() { for(let i=0; i<FIREWORK_CONFIG.particleCount; i++) shards.push(new Shard(this.x, this.y)); }
+    }
+
+    const meteors = Array.from({length: 12}, () => new Meteor());
+    let rockets = []; let shards = []; let tick = 0;
+    
+    function startMainFireworkLoop() { isMainLoopRunning = true; mainLoop(); }
+    
+    function mainLoop() {
+        if (!isMainLoopRunning) return;
+        ctx2.globalCompositeOperation = 'destination-out'; 
+        ctx2.fillStyle = 'rgba(0, 0, 0, 0.15)'; 
+        ctx2.fillRect(0, 0, w, h); 
+        ctx2.globalCompositeOperation = 'source-over';
+        
+        tick++;
+        meteors.forEach(m => { m.update(); m.draw(); });
+        
+        if (tick % 40 === 0 && targets.length > 0) {
+            rockets.push(new Rocket());
+        } 
+        
+        if (targets.length === 0 && !filmSequenceTriggered) {
+            filmSequenceTriggered = true;
+            console.log("文字渲染目標分配完畢，等待粒子落地與5秒緩衝...");
+            setTimeout(() => {
+                runFilmStripSequence();
+            }, 10000); 
+        }
+
+        rockets = rockets.filter(r => { r.draw(); return r.update(); });
+        
+        for (let i = shards.length - 1; i >= 0; i--) {
+            const s = shards[i]; s.update(); s.draw();
+            if (s.timer > s.ttl) {
+                if(s.target) {
+                    // === 修正：儲存相對中心的 Pixel 資料 ===
+                    const pixel = {
+                        offsetX: s.target.offsetX + FIREWORK_CONFIG.fidelity/2,
+                        offsetY: s.target.offsetY + FIREWORK_CONFIG.fidelity/2,
+                        color: s.color,
+                        glowColor: s.glowColor
+                    };
+                    drawnTextPixels.push(pixel);
+                    
+                    // 繪製時轉換為絕對座標
+                    const drawX = (w / 2) + pixel.offsetX;
+                    const drawY = (h / 2) + pixel.offsetY;
+
+                    ctx3.save(); ctx3.globalCompositeOperation = 'lighter';
+                    ctx3.shadowBlur = 15; ctx3.shadowColor = s.glowColor; ctx3.fillStyle = s.color;
+                    ctx3.beginPath(); 
+                    ctx3.arc(drawX, drawY, FIREWORK_CONFIG.fidelity/1.5, 0, Math.PI*2);
+                    ctx3.fill(); ctx3.restore();
+                }
+                shards.splice(i, 1);
+            }
+        }
+        requestAnimationFrame(mainLoop);
+    }
+  </script>
+</body>
+</html>

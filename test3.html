@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Project</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&display=swap" rel="stylesheet">
+
+    <style>
+        body { 
+            margin: 0; 
+            overflow: hidden; 
+            background-color: #050505; 
+            font-family: 'Microsoft JhengHei', sans-serif;
+            user-select: none;
+            
+            /* 背景圖片 (請自行修改圖片路徑) */
+            background-image: url('星空2.jpg'); 
+            background-size: cover;          
+            background-position: center;     
+            background-repeat: no-repeat;    
+        }
+        
+        #cake-container { width: 100%; height: 100vh; display: block; outline: none; }
+        
+        /* UI 層 */
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between; 
+            padding: 40px 0;
+            box-sizing: border-box;
+            transition: opacity 1s; /* 用於淡出 UI */
+        }
+
+        /* 標題 */
+        #birthday-title {
+            font-family: 'Great Vibes', cursive;
+            font-size: 80px;
+            color: #fff;
+            text-shadow: 0 0 10px #ff00de, 0 0 20px #ff00de, 0 0 40px #ff00de; 
+            margin-top: 60px; 
+            opacity: 0;
+            animation: titleFadeIn 3s ease-out forwards 1s; 
+            z-index: 20;
+            transition: opacity 1s;
+        }
+
+        @keyframes titleFadeIn {
+            0% { opacity: 0; transform: translateY(-30px); }
+            100% { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 底部控制區 */
+        #controls-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 50px;
+            min-height: 120px;
+            position: relative;
+            width: 100%;
+            transition: opacity 1s;
+        }
+
+        /* 警示文字 */
+        #warning-text {
+            margin-bottom: 20px; 
+            color: #ff3333;
+            font-size: 26px;
+            font-weight: bold;
+            letter-spacing: 3px;
+            text-shadow: 0 0 15px #ff0000;
+            opacity: 0; 
+            transition: opacity 0.5s;
+        }
+        
+        .blink { animation: blinkAnim 0.5s infinite alternate; }
+        @keyframes blinkAnim { from { opacity: 1; } to { opacity: 0.3; } }
+
+        /* 操作提示 */
+        #hint-text {
+            color: #fff;
+            font-size: 20px;
+            letter-spacing: 4px;
+            font-weight: bold;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.4);
+            box-shadow: 0 0 15px rgba(255, 255, 255, 0.2);
+            padding: 15px 40px;
+            border-radius: 50px;
+            opacity: 0; 
+            transform: scale(0.9);
+            transition: opacity 1s, transform 0.3s, box-shadow 0.3s;
+        }
+
+        /* 能量條 */
+        #energy-bar-container {
+            width: 320px;
+            height: 10px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 5px;
+            margin-top: 25px;
+            overflow: hidden;
+            opacity: 0; 
+            transition: opacity 1s;
+            border: 1px solid rgba(255,255,255,0.2);
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        
+        #energy-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #ff6600, #ff00de, #00ffff);
+            box-shadow: 0 0 20px rgba(255,255,255,0.8);
+            transition: width 0.1s linear;
+        }
+
+        .shaking { animation: textShake 0.1s infinite; }
+        @keyframes textShake { 0% { transform: translate(0, 0); } 25% { transform: translate(-2px, 0); } 50% { transform: translate(2px, 0); } 75% { transform: translate(-2px, 0); } }
+
+        /* --- 轉場白光 --- */
+        #white-flash {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; 
+            opacity: 0; 
+            pointer-events: none; 
+            z-index: 999;
+            transition: opacity 2s ease-in;
+        }
+    </style>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="white-flash"></div> <div id="cake-container"></div>
+    
+    <div id="ui-layer">
+        <div id="birthday-title">Happy Birthday!</div>
+
+        <div id="controls-area">
+            <div id="warning-text">⚠️ 偵測到大量異常能量...</div>
+            <div id="hint-text">按住空白鍵 注入能量</div>
+            <div id="energy-bar-container">
+                <div id="energy-bar"></div>
+            </div>
+        </div>
+    </div>
+
+    <audio id="bgm" src="happy birthday.mp3" autoplay loop></audio> 
+
+    <script>
+        // === 全局變數 ===
+        let scene, camera, renderer, controls;
+        let cakeParticles, energyParticles; 
+        let cakePositions, cakeOriginalColors, cakeCurrentColors;
+        let energyPositions; 
+        
+        let state = 'locked'; 
+        let chargeLevel = 0; 
+        
+        // 轉場計時器
+        let dissolveTimer = 0; 
+        
+        // 參數
+        const particleCount = 32000; 
+        const energyCount = 1500;     
+        const convergeSpeed = 0.012; 
+        const chargeSpeed = 0.0016;  
+        const dischargeSpeed = 0.005; 
+
+        const _tempColor = new THREE.Color();
+        const _stage1Color = new THREE.Color(1.0, 0.4, 0.0); 
+        const _stage2Color = new THREE.Color(0.0, 0.8, 1.0); 
+        const _finalColor = new THREE.Color(1.0, 1.0, 1.0);  
+        // 轉場金色
+        const _goldColor = new THREE.Color(1.0, 0.85, 0.3); 
+
+        const hintText = document.getElementById('hint-text');
+        const warningText = document.getElementById('warning-text');
+        const energyContainer = document.getElementById('energy-bar-container');
+        const energyBar = document.getElementById('energy-bar');
+        const whiteFlash = document.getElementById('white-flash');
+        const uiLayer = document.getElementById('ui-layer');
+
+        function init() {
+            const container = document.getElementById('cake-container');
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x050505, 0.02);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            
+            // 攝影機位置
+            camera.position.set(0, 2, 8); 
+            camera.lookAt(0, 0, 0);
+
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            container.appendChild(renderer.domElement);
+
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true; controls.dampingFactor = 0.05;
+            controls.autoRotate = true; controls.autoRotateSpeed = 2.0;
+            controls.minDistance = 5; controls.maxDistance = 25;
+
+            createCakeSystem();
+            createEnergySystem();
+
+            window.addEventListener('keydown', onKeyDown);
+            window.addEventListener('keyup', onKeyUp);
+            window.addEventListener('resize', onWindowResize, false);
+            
+            ['click', 'mousemove', 'touchstart', 'keydown'].forEach(evt => 
+                window.addEventListener(evt, playMusic, { once: true })
+            );
+            playMusic(); 
+
+            startTimeline();
+            animate();
+        }
+
+        function playMusic() {
+            const audio = document.getElementById('bgm');
+            if (audio && audio.paused) { 
+                audio.play().catch(e => console.log("Waiting for interaction...")); 
+            }
+        }
+
+        function startTimeline() {
+            setTimeout(() => {
+                warningText.style.opacity = 1;
+                warningText.classList.add('blink'); 
+            }, 25000);
+
+            setTimeout(() => {
+                hintText.style.opacity = 1;
+                hintText.style.transform = "scale(1)";
+                energyContainer.style.opacity = 1; 
+                state = 'idle'; 
+            }, 30000);
+        }
+
+        function onKeyDown(event) {
+            playMusic(); 
+            if (state === 'locked' || state === 'dissolving') return; // 如果正在化光，禁止操作
+            if (event.code === 'Space') { 
+                event.preventDefault(); 
+                if (state !== 'charging') startCharge(); 
+            }
+        }
+        function onKeyUp(event) {
+            if (state === 'locked' || state === 'dissolving') return;
+            if (event.code === 'Space') stopCharge();
+        }
+
+        function startCharge() {
+            state = 'charging';
+            controls.autoRotate = false; 
+            hintText.innerText = "能量注入中...";
+            hintText.style.color = "#ff00de";
+            hintText.style.borderColor = "#ff00de";
+            hintText.style.boxShadow = "0 0 25px rgba(255, 0, 222, 0.6)";
+            hintText.classList.add('shaking'); 
+        }
+
+        function stopCharge() {
+            state = 'idle';
+            controls.autoRotate = true; 
+            hintText.innerText = "按住空白鍵 注入能量";
+            hintText.style.color = "#fff";
+            hintText.style.borderColor = "rgba(255, 255, 255, 0.4)";
+            hintText.style.boxShadow = "0 0 15px rgba(255, 255, 255, 0.2)";
+            hintText.classList.remove('shaking');
+        }
+
+        function createCakeSystem() {
+            const geometry = new THREE.BufferGeometry();
+            const positions = []; const targetPositions = []; const colors = [];
+            generateCakeData(targetPositions, colors);
+            for (let i = 0; i < targetPositions.length / 3; i++) {
+                const r = 50 + Math.random() * 40; 
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                positions.push(r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
+            }
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            const material = new THREE.PointsMaterial({ size: 0.08, vertexColors: true, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false });
+            cakeParticles = new THREE.Points(geometry, material);
+            cakeParticles.userData = { targets: targetPositions };
+            scene.add(cakeParticles);
+            cakePositions = cakeParticles.geometry.attributes.position.array;
+            cakeCurrentColors = cakeParticles.geometry.attributes.color.array;
+            cakeOriginalColors = new Float32Array(colors);
+        }
+
+        function createEnergySystem() {
+            const geometry = new THREE.BufferGeometry();
+            const positions = [];
+            for(let i=0; i<energyCount; i++) {
+                const r = 15 + Math.random() * 25;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+                positions.push(r * Math.sin(phi) * Math.cos(theta), r * Math.sin(phi) * Math.sin(theta), r * Math.cos(phi));
+            }
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            const material = new THREE.PointsMaterial({ color: 0xffffff, size: 0.15, transparent: true, opacity: 0.0, blending: THREE.AdditiveBlending, depthWrite: false });
+            energyParticles = new THREE.Points(geometry, material);
+            scene.add(energyParticles);
+            energyPositions = energyParticles.geometry.attributes.position.array;
+        }
+
+        function generateCakeData(targets, colors) {
+            const addVolume = (count, radius, height, yBase, color) => { for(let i=0; i<count; i++) { const theta = Math.random() * Math.PI * 2; const r = radius * Math.sqrt(0.1 + 0.9 * Math.random()); const x = r * Math.cos(theta); const y = yBase + (Math.random()) * height; const z = r * Math.sin(theta); targets.push(x, y, z); colors.push(Math.min(1, color.r + (Math.random()-0.5)*0.15), Math.min(1, color.g + (Math.random()-0.5)*0.15), Math.min(1, color.b + (Math.random()-0.5)*0.15)); } };
+            const addRim = (count, radius, yPos, color) => { for(let i=0; i<count; i++) { const theta = Math.random() * Math.PI * 2; const r = radius + (Math.random()-0.5) * 0.1; const wave = Math.sin(theta * 14) * 0.06; const x = r * Math.cos(theta); const y = yPos + (Math.random()-0.5) * 0.08 + wave; const z = r * Math.sin(theta); targets.push(x, y, z); colors.push(color.r+0.3, color.g+0.3, color.b+0.3); } };
+            const addSprinkles = (count, radius, height, yBase) => { for(let i=0; i<count; i++) { const theta = Math.random() * Math.PI * 2; const r = radius + 0.07; const x = r * Math.cos(theta); const y = yBase + Math.random() * height; const z = r * Math.sin(theta); targets.push(x, y, z); const t = Math.random(); if(t < 0.3) colors.push(1,0,0.4); else if(t < 0.6) colors.push(0,0.9,1); else colors.push(1,0.9,0.2); } };
+            const addStyledOne = (count, xOffset, yBase, color) => { const h = 0.68; const w = 0.1; for(let i=0; i<count; i++) { const t = Math.random(); let x, y, z; z = (Math.random()-0.5) * w; if (t < 0.85) { x = xOffset + (Math.random()-0.5) * w; y = yBase + (t / 0.85) * h; } else { const serifT = (t - 0.85) / 0.15; x = xOffset - serifT * 0.15 + (Math.random()-0.5)*0.04; y = (yBase + h) - serifT * 0.12 + (Math.random()-0.5)*0.04; } targets.push(x, y, z); colors.push(color.r, color.g, color.b); } };
+            const addStyledTwo = (count, xOffset, yBase, color) => { const scale = 0.43; const h = 1.6 * scale; for(let i=0; i<count; i++) { const t = Math.random(); let x, y, z; z = (Math.random()-0.5) * 0.1; if (t < 0.45) { const r = 0.5 * scale; const centerY = yBase + h - r; const startAng = Math.PI - 0.2; const endAng = -0.3; const angle = startAng - (t / 0.45) * (startAng - endAng); x = xOffset + r * Math.cos(angle); y = centerY + r * Math.sin(angle); } else if (t < 0.8) { const r = 0.5 * scale; const startX = xOffset + r * Math.cos(-0.3); const startY = (yBase + h - r) + r * Math.sin(-0.3); const endX = xOffset - 0.5 * scale; const endY = yBase; const segT = (t - 0.45) / 0.35; x = startX + (endX - startX) * segT; y = startY + (endY - startY) * segT; } else { const startX = xOffset - 0.5 * scale; const endX = xOffset + 0.55 * scale; const segT = (t - 0.8) / 0.2; x = startX + (endX - startX) * segT; y = yBase; } targets.push(x + (Math.random()-0.5)*0.03, y + (Math.random()-0.5)*0.03, z); colors.push(color.r+0.15, color.g+0.15, color.b+0.15); } };
+            addVolume(7000, 2.0, 1.1, -1.8, {r:0.2, g:0.0, b:0.8}); addRim(1800, 2.0, -0.7, {r:0.0, g:0.8, b:1.0}); addSprinkles(400, 2.0, 1.1, -1.8);
+            addVolume(5500, 1.5, 0.9, -0.7, {r:0.8, g:0.0, b:0.4}); addRim(1400, 1.5, 0.2, {r:1.0, g:0.8, b:0.0}); addSprinkles(350, 1.5, 0.9, -0.7);
+            addVolume(4500, 1.0, 0.7, 0.2, {r:0.0, g:0.6, b:0.6}); addRim(1200, 1.0, 0.9, {r:1.0, g:1.0, b:1.0}); addSprinkles(300, 1.0, 0.7, 0.2);
+            const gold = {r:1.0, g:0.8, b:0.1}; addStyledTwo(2500, -0.3, 1.0, gold); addStyledOne(2000, 0.3, 1.0, gold);  
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            const targets = cakeParticles.userData.targets;
+
+            // === 1. 狀態邏輯 ===
+            if (state === 'charging') {
+                chargeLevel += chargeSpeed;
+                if (chargeLevel >= 1.0) { 
+                    chargeLevel = 1.0; 
+                    state = 'dissolving'; // ★ 進入化光階段
+                    
+                    // 隱藏 UI
+                    uiLayer.style.opacity = 0;
+                    energyContainer.style.opacity = 0;
+                    
+                    // 停止自動旋轉，方便觀察化光
+                    controls.autoRotate = false;
+                }
+            } else if (state === 'idle') {
+                if (chargeLevel > 0) { chargeLevel -= dischargeSpeed; if (chargeLevel < 0) chargeLevel = 0; }
+                if (chargeLevel === 0) { /* 保持能量條 */ }
+            }
+            energyBar.style.width = (chargeLevel * 100) + '%';
+
+            // === 2. 顏色計算 ===
+            let currentColorObj = _tempColor;
+            if (chargeLevel > 0) {
+                if (chargeLevel < 0.4) currentColorObj.lerpColors(new THREE.Color(1,1,1), _stage1Color, chargeLevel/0.4); 
+                else if (chargeLevel < 0.8) currentColorObj.lerpColors(_stage1Color, _stage2Color, (chargeLevel-0.4)/0.4);
+                else currentColorObj.lerpColors(_stage2Color, _finalColor, (chargeLevel-0.8)/0.2);
+            }
+
+            // 更新能量粒子 (圍繞著蛋糕飛)
+            energyParticles.material.opacity = Math.min(chargeLevel * 2, 0.8);
+            energyParticles.material.color.copy(currentColorObj);
+
+            // 能量粒子的飛行邏輯
+            if (state !== 'dissolving') { // 化光後能量粒子也可以一起化掉
+                const speed = 0.08 + chargeLevel * 0.3; 
+                for(let i=0; i<energyCount; i++) {
+                    const ix = i*3; const iy = i*3+1; const iz = i*3+2;
+                    let x = energyPositions[ix]; let y = energyPositions[iy]; let z = energyPositions[iz];
+                    const dist = Math.sqrt(x*x + y*y + z*z);
+                    if (dist < 1.5) {
+                        const r = 20 + Math.random() * 15;
+                        const theta = Math.random() * Math.PI * 2;
+                        const phi = Math.acos(2 * Math.random() - 1);
+                        energyPositions[ix] = r * Math.sin(phi) * Math.cos(theta);
+                        energyPositions[iy] = r * Math.sin(phi) * Math.sin(theta);
+                        energyPositions[iz] = r * Math.cos(phi);
+                    } else {
+                        const moveFactor = speed / dist; 
+                        energyPositions[ix] -= x * moveFactor;
+                        energyPositions[iy] -= y * moveFactor;
+                        energyPositions[iz] -= z * moveFactor;
+                    }
+                }
+                energyParticles.geometry.attributes.position.needsUpdate = true;
+            }
+
+            // === 3. 蛋糕粒子邏輯 (核心修改部分) ===
+            
+            // ★★★ 許願化光特效 ★★★
+            if (state === 'dissolving') {
+                dissolveTimer += 0.016; // 增加計時
+                
+                // ★★★ 新增：音樂淡出邏輯 ★★★
+                const audio = document.getElementById('bgm');
+                if (audio) {
+                    // 7秒內從 1 降到 0
+                    let newVol = 1.0 - (dissolveTimer / 7.0);
+                    if (newVol < 0) newVol = 0;
+                    audio.volume = newVol;
+                }
+                
+                // --- 階段一：飄散 (0 ~ 3秒) ---
+                // 粒子失去形狀，變成螢火蟲般飄散，顏色轉為金色
+                if (dissolveTimer < 3.0) {
+                     for(let i=0; i < targets.length/3; i++) {
+                        const ix = i * 3; const iy = i * 3 + 1; const iz = i * 3 + 2;
+                        
+                        // 加上隨機漂浮力
+                        cakePositions[ix] += (Math.random() - 0.5) * 0.05 + Math.sin(dissolveTimer + iy) * 0.01;
+                        cakePositions[iy] += (Math.random() - 0.5) * 0.05 + Math.cos(dissolveTimer + ix) * 0.01;
+                        cakePositions[iz] += (Math.random() - 0.5) * 0.05;
+                        
+                        // 顏色漸變為金色光點
+                        cakeCurrentColors[ix] += (_goldColor.r - cakeCurrentColors[ix]) * 0.05;
+                        cakeCurrentColors[iy] += (_goldColor.g - cakeCurrentColors[iy]) * 0.05;
+                        cakeCurrentColors[iz] += (_goldColor.b - cakeCurrentColors[iz]) * 0.05;
+                     }
+                } 
+                // --- 階段二：匯聚 (3 ~ 5.5秒) ---
+                // 粒子快速旋轉並衝向中心 (0,0,0)
+                else if (dissolveTimer < 5.5) {
+                    const centerSpeed = 0.08;
+                    for(let i=0; i < targets.length/3; i++) {
+                        const ix = i * 3; const iy = i * 3 + 1; const iz = i * 3 + 2;
+                        
+                        // 往中心拉
+                        cakePositions[ix] += (0 - cakePositions[ix]) * centerSpeed;
+                        cakePositions[iy] += (0 - cakePositions[iy]) * centerSpeed;
+                        cakePositions[iz] += (0 - cakePositions[iz]) * centerSpeed;
+                        
+                        // 增加一點旋轉效果 (漩渦感)
+                        const oldX = cakePositions[ix];
+                        const oldZ = cakePositions[iz];
+                        const rotSpeed = 0.1;
+                        cakePositions[ix] = oldX * Math.cos(rotSpeed) - oldZ * Math.sin(rotSpeed);
+                        cakePositions[iz] = oldX * Math.sin(rotSpeed) + oldZ * Math.cos(rotSpeed);
+                        
+                        // 顏色變極亮白
+                        cakeCurrentColors[ix] = 1; cakeCurrentColors[iy] = 1; cakeCurrentColors[iz] = 1;
+                    }
+                }
+                // --- 階段三：閃光與跳轉 (5.5秒後) ---
+                else {
+                    // 觸發白光
+                    whiteFlash.style.opacity = 1;
+                    
+                    // 延遲跳轉
+                    if (dissolveTimer > 7.0) {
+                         // ★★★ 這裡設定跳轉目標 ★★★
+                         window.location.href = "test4.html"; 
+                    }
+                }
+            } 
+            // === 正常狀態：蛋糕維持形狀 ===
+            else {
+                for(let i=0; i < targets.length/3; i++) {
+                    const ix = i * 3; const iy = i * 3 + 1; const iz = i * 3 + 2;
+                    let tx = targets[ix]; let ty = targets[iy]; let tz = targets[iz];
+                    
+                    if (chargeLevel > 0) {
+                        const shakeAmt = 0.02 * chargeLevel; 
+                        tx += (Math.random() - 0.5) * shakeAmt; ty += (Math.random() - 0.5) * shakeAmt; tz += (Math.random() - 0.5) * shakeAmt;
+                    }
+                    cakePositions[ix] += (tx - cakePositions[ix]) * convergeSpeed;
+                    cakePositions[iy] += (ty - cakePositions[iy]) * convergeSpeed;
+                    cakePositions[iz] += (tz - cakePositions[iz]) * convergeSpeed;
+
+                    if (chargeLevel > 0) {
+                        const mixFactor = chargeLevel * 0.8; 
+                        cakeCurrentColors[ix] = cakeOriginalColors[ix] * (1-mixFactor) + currentColorObj.r * mixFactor;
+                        cakeCurrentColors[iy] = cakeOriginalColors[iy] * (1-mixFactor) + currentColorObj.g * mixFactor;
+                        cakeCurrentColors[iz] = cakeOriginalColors[iz] * (1-mixFactor) + currentColorObj.b * mixFactor;
+                    } else {
+                         cakeCurrentColors[ix] += (cakeOriginalColors[ix] - cakeCurrentColors[ix]) * 0.05;
+                         cakeCurrentColors[iy] += (cakeOriginalColors[iy] - cakeCurrentColors[iy]) * 0.05;
+                         cakeCurrentColors[iz] += (cakeOriginalColors[iz] - cakeCurrentColors[iz]) * 0.05;
+                    }
+                }
+            }
+            
+            cakeParticles.geometry.attributes.position.needsUpdate = true;
+            cakeParticles.geometry.attributes.color.needsUpdate = true;
+            if(state === 'dissolving') energyParticles.geometry.attributes.position.needsUpdate = true; // 讓能量粒子也更新
+            
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() { camera.aspect = window.innerWidth / window.innerHeight; camera.updateProjectionMatrix(); renderer.setSize(window.innerWidth, window.innerHeight); }
+        init();
+    </script>
+</body>
+</html>
