@@ -343,12 +343,6 @@
         </div>
         <button class="s1_btn" style="width: 200px; margin-top: 50px;" onclick="s3_reboot()">重新啟動</button>
 
-        <img 
-            id="my-secret-counter" 
-            src="https://count.getloli.com/get/@linjiaen-secret-01?theme=rule34" 
-            style="display: none;" 
-            alt="訪客計數" 
-        />
     </div>
 
     <script>
@@ -627,7 +621,26 @@
             }, 3000); 
         }
     </script>
+
+    <script>
+    // 1. 設定您的計數器圖片網址 (請把下面這串換成您自己申請的那串！)
+    var counterUrl = "https://count.getloli.com/get/@linjiaen-secret-01?theme=rule34";
+
+    // 2. 檢查是否有「管理員通行證」
+    if (localStorage.getItem('is_admin') === 'true') {
+        console.log("👑 歡迎回來，管理員！。");
+    } else {
+        // 3. 如果不是管理員，就動態建立圖片來計數
+        var img = document.createElement('img');
+        img.src = counterUrl;
+        img.style.display = 'none'; // 保持隱藏
+        img.id = 'my-secret-counter'; // 設定ID方便您之後檢查
+        document.body.appendChild(img);
+        console.log("訪客 +1");
+    }
+</script>
 </body>
 
 </html>
+
 
